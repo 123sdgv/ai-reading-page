@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 阅读器</title>
+  <style>
+    :root {
+      --bg: #f6f3ef;
+      --card: #ffffff;
+      --text: #1f1f1f;
+      --muted: #777;
+      --line: #e8e1d8;
+      --accent: #111;
+      --soft: #f1ebe4;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button, input, textarea, select {
+      font: inherit;
+    }
+
+    button {
+      border: none;
+      background: var(--accent);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: var(--soft);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    button.icon {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(246, 243, 239, 0.92);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+    }
+
+    .left-actions, .right-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    main {
+      width: min(920px, 100%);
+      margin: 0 auto;
+      padding: 24px 18px 80px;
+    }
+
+    .empty {
+      min-height: 55vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .cards {
+      display: grid;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+    }
+
+    .text-card {
+      cursor: pointer;
+    }
+
+    .text-card h2 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .reader-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .reader-title h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .overall-note {
+      background: #fffaf2;
+      border: 1px solid #eadac2;
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 22px;
+      line-height: 1.8;
+    }
+
+    .paragraph {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      margin-bottom: 16px;
+      line-height: 1.9;
+      font-size: 17px;
+      white-space: pre-wrap;
+    }
+
+    .p-actions {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .comment {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: #f8f0df;
+      border: 1px solid #ead8b8;
+      color: #3a2a18;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #111;
+      color: white;
+      margin-right: 6px;
+    }
+
+    .panel-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.25);
+      z-index: 30;
+      display: none;
+    }
+
+    .panel {
+      position: fixed;
+      right: 0;
+      top: 0;
+      width: min(440px, 92vw);
+      height: 100vh;
+      background: var(--card);
+      border-left: 1px solid var(--line);
+      z-index: 40;
+      transform: translateX(105%);
+      transition: 0.22s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel.open {
+      transform: translateX(0);
+    }
+
+    .panel-mask.open {
+      display: block;
+    }
+
+    .panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-header h2 {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    .panel-body {
+      padding: 16px;
+      overflow: auto;
+      flex: 1;
+    }
+
+    .panel-footer {
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      gap: 8px;
+    }
+
+    .panel-footer textarea {
+      flex: 1;
+      min-height: 46px;
+      max-height: 120px;
+      resize: vertical;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: white;
+      color: var(--text);
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      color: var(--muted);
+      margin: 14px 0 6px;
+    }
+
+    .chat-msg {
+      padding: 12px;
+      border-radius: 16px;
+      margin-bottom: 10px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+
+    .chat-user {
+      background: #111;
+      color: white;
+      margin-left: 28px;
+    }
+
+    .chat-ai {
+      background: var(--soft);
+      margin-right: 28px;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .danger {
+      background: #922;
+    }
+
+    .loading {
+      opacity: 0.65;
+      pointer-events: none;
+    }
+
+    @media (max-width: 700px) {
+      .brand {
+        display: none;
+      }
+
+      main {
+        padding: 18px 12px 70px;
+      }
+
+      .paragraph {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="left-actions">
+        <button class="icon secondary" onclick="openNotesPanel()">□</button>
+        <button class="icon secondary" onclick="openSettingsPanel()">□</button>
+      </div>
+
+      <div class="brand">AI 阅读器</div>
+
+      <div class="right-actions">
+        <button class="icon" onclick="document.getElementById('fileInput').click()">＋</button>
+        <input id="fileInput" type="file" accept=".txt,text/plain" hidden onchange="handleFileUpload(event)" />
+      </div>
+    </header>
+
+    <main id="main"></main>
+  </div>
+
+  <div id="panelMask" class="panel-mask" onclick="closePanel()"></div>
+
+  <aside id="panel" class="panel">
+    <div class="panel-header">
+      <h2 id="panelTitle">面板</h2>
+      <button class="secondary" onclick="closePanel()">关闭</button>
+    </div>
+    <div id="panelBody" class="panel-body"></div>
+    <div id="panelFooter" class="panel-footer" style="display:none;"></div>
+  </aside>
+
+  <script>
+    const STORAGE_KEY = "ai_reader_v1";
+
+    let state = loadState();
+    let currentView = "home";
+    let currentTextId = null;
+    let currentChat = null;
+
+    function defaultState() {
+      return {
+        settings: {
+          workerUrl: "https://ai-reader-proxy.shun83258.workers.dev",
+          memoryMode: "none"
+        },
+        texts: [],
+        globalAiNotes: [],
+        globalMyNotes: []
+      };
+    }
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return defaultState();
+        return { ...defaultState(), ...JSON.parse(saved) };
+      } catch {
+        return defaultState();
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function uid(prefix) {
+      return prefix + "_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatDate(iso) {
+      if (!iso) return "";
+      return new Date(iso).toLocaleString("zh-CN");
+    }
+
+    function splitParagraphs(text) {
+      return text
+        .replace(/\r/g, "")
+        .split(/\n\s*\n|(?<=。|！|？)\n+/)
+        .map(p => p.trim())
+        .filter(Boolean);
+    }
+
+    function getText(id) {
+      return state.texts.find(t => t.id === id);
+    }
+
+    function getCommentsForParagraph(text, index) {
+      return (text.aiComments || []).filter(c => Number(c.paragraphIndex) === Number(index));
+    }
+
+    function renderHome() {
+      currentView = "home";
+      currentTextId = null;
+
+      const main = document.getElementById("main");
+
+      if (!state.texts.length) {
+        main.innerHTML = `
+          <div class="empty">
+            <div>
+              <h1>这里暂时是空白</h1>
+              <p>点右上角「＋」上传一个 UTF-8 TXT 文本。<br>上传后 AI 会自动生成阅读笔记和少量批注。</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      main.innerHTML = `
+        <div class="cards">
+          ${state.texts.map(text => `
+            <article class="card text-card" onclick="renderReader('${text.id}')">
+              <h2>${escapeHtml(text.title)}</h2>
+              <div class="meta">
+                ${text.content.length} 字 / ${text.paragraphs.length} 段 / AI 批注 ${(text.aiComments || []).length} 条 / 我的笔记 ${(text.myNotes || []).length} 条<br>
+                最近阅读：${formatDate(text.updatedAt || text.createdAt)}
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderReader(textId) {
+      currentView = "reader";
+      currentTextId = textId;
+
+      const text = getText(textId);
+      if (!text) return renderHome();
+
+      text.updatedAt = new Date().toISOString();
+      saveState();
+
+      const main = document.getElementById("main");
+
+      main.innerHTML = `
+        <div class="reader-title">
+          <div>
+            <button class="secondary" onclick="renderHome()">← 返回</button>
+            <h1>${escapeHtml(text.title)}</h1>
+            <div class="meta">${text.content.length} 字 / ${text.paragraphs.length} 段</div>
+          </div>
+          <button class="secondary danger" onclick="deleteText('${text.id}')">删除</button>
+        </div>
+
+        <section class="overall-note">
+          <strong>AI 阅读笔记</strong>
+          <div>${escapeHtml(text.aiReadingNote || "暂无。")}</div>
+        </section>
+
+        ${text.paragraphs.map((p, i) => `
+          <section class="paragraph">
+            <div>${escapeHtml(p.text)}</div>
+
+            ${getCommentsForParagraph(text, i).map(c => `
+              <div class="comment">
+                <span class="tag">${escapeHtml(c.tag || "批注")}</span>
+                ${escapeHtml(c.comment || "")}
+              </div>
+            `).join("")}
+
+            <div class="p-actions">
+              <button class="secondary" onclick="openChatPanel('${text.id}', ${i})">聊聊这段</button>
+              <button class="secondary" onclick="saveMyNote('${text.id}', ${i})">保存我的笔记</button>
+            </div>
+          </section>
+        `).join("")}
+      `;
+    }
+
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      event.target.value = "";
+
+      if (!file) return;
+
+      const workerUrl = state.settings.workerUrl;
+      if (!workerUrl) {
+        alert("请先在 API 设置里填写 Worker 地址。");
+        openSettingsPanel();
+        return;
+      }
+
+      const content = await file.text();
+      const paragraphs = splitParagraphs(content);
+
+      if (!paragraphs.length) {
+        alert("没有读到有效段落。请确认 TXT 是 UTF-8 编码，并且不是空文件。");
+        return;
+      }
+
+      const text = {
+        id: uid("text"),
+        title: file.name.replace(/\.txt$/i, ""),
+        content,
+        paragraphs: paragraphs.map((p, i) => ({
+          id: uid("p"),
+          index: i,
+          text: p,
+          chatHistory: []
+        })),
+        aiReadingNote: "AI 正在阅读中……",
+        aiComments: [],
+        myNotes: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      state.texts.unshift(text);
+      saveState();
+      renderReader(text.id);
+
+      try {
+        document.body.classList.add("loading");
+
+        const result = await callWorker("/annotate", {
+          title: text.title,
+          paragraphs: text.paragraphs.map(p => p.text),
+          memoryMode: state.settings.memoryMode,
+          aiNotes: state.globalAiNotes.map(n => n.note),
+          myNotes: state.globalMyNotes.map(n => n.note)
+        });
+
+        const parsed = result.parsed;
+
+        if (parsed) {
+          text.aiReadingNote = parsed.overallNote || "AI 已阅读，但没有返回整篇笔记。";
+          text.aiComments = Array.isArray(parsed.comments) ? parsed.comments : [];
+        } else {
+          text.aiReadingNote = result.raw || "AI 返回内容无法解析。";
+          text.aiComments = [];
+        }
+
+        state.globalAiNotes.push({
+          sourceTextId: text.id,
+          sourceTitle: text.title,
+          note: text.aiReadingNote,
+          createdAt: new Date().toISOString()
+        });
+
+        saveState();
+        renderReader(text.id);
+      } catch (err) {
+        text.aiReadingNote = "AI 阅读失败：" + err.message;
+        saveState();
+        renderReader(text.id);
+        alert("AI 阅读失败：" + err.message);
+      } finally {
+        document.body.classList.remove("loading");
+      }
+    }
+
+    async function callWorker(path, body) {
+      const base = state.settings.workerUrl.replace(/\/$/, "");
+      const response = await fetch(base + path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      const text = await response.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || "Worker 返回的不是 JSON");
+      }
+
+      if (!response.ok || data.error) {
+        throw new Error(data.message || "Worker 请求失败");
+      }
+
+      return data;
+    }
+
+    function openPanel(title, bodyHtml, footerHtml = "") {
+      document.getElementById("panelTitle").textContent = title;
+      document.getElementById("panelBody").innerHTML = bodyHtml;
+
+      const footer = document.getElementById("panelFooter");
+      if (footerHtml) {
+        footer.style.display = "flex";
+        footer.innerHTML = footerHtml;
+      } else {
+        footer.style.display = "none";
+        footer.innerHTML = "";
+      }
+
+      document.getElementById("panel").classList.add("open");
+      document.getElementById("panelMask").classList.add("open");
+    }
+
+    function closePanel() {
+      document.getElementById("panel").classList.remove("open");
+      document.getElementById("panelMask").classList.remove("open");
+      document.getElementById("panelFooter").style.display = "none";
+      currentChat = null;
+    }
+
+    function openSettingsPanel() {
+      openPanel("API 设置", `
+        <label>Worker URL</label>
+        <input id="workerUrlInput" value="${escapeHtml(state.settings.workerUrl || "")}" placeholder="https://xxx.workers.dev" />
+
+        <label>记忆权限</label>
+        <select id="memoryModeInput">
+          <option value="none" ${state.settings.memoryMode === "none" ? "selected" : ""}>不读取过往笔记</option>
+          <option value="ai" ${state.settings.memoryMode === "ai" ? "selected" : ""}>只读取过往 AI 阅读笔记</option>
+          <option value="all" ${state.settings.memoryMode === "all" ? "selected" : ""}>读取 AI 阅读笔记 + 我的阅读笔记</option>
+        </select>
+
+        <p class="small">
+          API Key 不在这里填写。它已经放在 Cloudflare Worker 环境变量里。
+        </p>
+
+        <button onclick="saveSettings()">保存设置</button>
+      `);
+    }
+
+    function saveSettings() {
+      state.settings.workerUrl = document.getElementById("workerUrlInput").value.trim();
+      state.settings.memoryMode = document.getElementById("memoryModeInput").value;
+      saveState();
+      alert("设置已保存。");
+      closePanel();
+    }
+
+    function openNotesPanel() {
+      const aiNotes = state.globalAiNotes.slice().reverse();
+      const myNotes = state.globalMyNotes.slice().reverse();
+
+      openPanel("阅读笔记", `
+        <h3>我的阅读笔记</h3>
+        ${myNotes.length ? myNotes.map(n => `
+          <div class="card">
+            <div>${escapeHtml(n.note)}</div>
+            <div class="meta">来自：${escapeHtml(n.sourceTitle || "")} / 第 ${Number(n.paragraphIndex) + 1 || "-"} 段</div>
+          </div>
+        `).join("") : `<p class="small">暂无我的笔记。</p>`}
+
+        <h3>AI 阅读笔记</h3>
+        ${aiNotes.length ? aiNotes.map(n => `
+          <div class="card">
+            <div>${escapeHtml(n.note)}</div>
+            <div class="meta">来自：${escapeHtml(n.sourceTitle || "")}</div>
+          </div>
+        `).join("") : `<p class="small">暂无 AI 阅读笔记。</p>`}
+      `);
+    }
+
+    function openChatPanel(textId, paragraphIndex) {
+      const text = getText(textId);
+      const p = text.paragraphs[paragraphIndex];
+
+      currentChat = { textId, paragraphIndex };
+
+      renderChatPanel();
+    }
+
+    function renderChatPanel() {
+      if (!currentChat) return;
+
+      const text = getText(currentChat.textId);
+      const p = text.paragraphs[currentChat.paragraphIndex];
+      const history = p.chatHistory || [];
+
+      openPanel(
+        `第 ${currentChat.paragraphIndex + 1} 段`,
+        `
+          <div class="card">
+            <div class="small">当前段落</div>
+            <div style="line-height:1.8; white-space:pre-wrap;">${escapeHtml(p.text)}</div>
+          </div>
+
+          <div style="margin-top:14px;">
+            ${history.map(m => `
+              <div class="chat-msg ${m.role === "user" ? "chat-user" : "chat-ai"}">
+                ${escapeHtml(m.content)}
+              </div>
+            `).join("") || `<p class="small">还没有聊天。你可以问：这里为什么这样写？人物情绪是什么？有没有伏笔？</p>`}
+          </div>
+        `,
+        `
+          <textarea id="chatInput" placeholder="问问这段……"></textarea>
+          <button onclick="sendChat()">发送</button>
+        `
+      );
+    }
+
+    async function sendChat() {
+      if (!currentChat) return;
+
+      const input = document.getElementById("chatInput");
+      const userMessage = input.value.trim();
+      if (!userMessage) return;
+
+      const text = getText(currentChat.textId);
+      const i = currentChat.paragraphIndex;
+      const p = text.paragraphs[i];
+
+      p.chatHistory = p.chatHistory || [];
+      p.chatHistory.push({ role: "user", content: userMessage });
+
+      saveState();
+      renderChatPanel();
+
+      try {
+        const result = await callWorker("/chat", {
+          currentParagraph: text.paragraphs[i]?.text || "",
+          previousParagraph: text.paragraphs[i - 1]?.text || "",
+          nextParagraph: text.paragraphs[i + 1]?.text || "",
+          userMessage,
+          chatHistory: p.chatHistory.slice(0, -1),
+          textAiNote: text.aiReadingNote,
+          memoryMode: state.settings.memoryMode,
+          aiNotes: state.globalAiNotes.map(n => n.note),
+          myNotes: state.globalMyNotes.map(n => n.note)
+        });
+
+        p.chatHistory.push({
+          role: "assistant",
+          content: result.reply || "AI 没有返回内容。"
+        });
+
+        saveState();
+        renderChatPanel();
+      } catch (err) {
+        p.chatHistory.push({
+          role: "assistant",
+          content: "聊天失败：" + err.message
+        });
+
+        saveState();
+        renderChatPanel();
+      }
+    }
+
+    function saveMyNote(textId, paragraphIndex) {
+      const text = getText(textId);
+      const p = text.paragraphs[paragraphIndex];
+
+      const note = prompt("写下你的阅读笔记：", "");
+      if (!note || !note.trim()) return;
+
+      const item = {
+        sourceTextId: text.id,
+        sourceTitle: text.title,
+        paragraphIndex,
+        paragraphText: p.text,
+        note: note.trim(),
+        createdAt: new Date().toISOString()
+      };
+
+      text.myNotes = text.myNotes || [];
+      text.myNotes.push(item);
+      state.globalMyNotes.push(item);
+
+      saveState();
+      alert("已保存到我的阅读笔记。");
+    }
+
+    function deleteText(textId) {
+      if (!confirm("确定删除这篇文本？这会删除它的原文、批注和聊天记录。")) return;
+      state.texts = state.texts.filter(t => t.id !== textId);
+      saveState();
+      renderHome();
+    }
+
+    renderHome();
+  </script>
+</body>
+</html>
