@@ -214,13 +214,13 @@
       margin: 0 auto;
       font-family: "Songti SC", "STSong", "Noto Serif SC", "PingFang SC", serif;
       font-size: 18px;
-      line-height: 1.72;
-      letter-spacing: 0.015em;
+      line-height: 1.46;
+      letter-spacing: 0.006em;
     }
 
     .para-wrap {
-      margin: 0 0 0.85em;
-      padding: 0.1em 0;
+      margin: 0 0 0.42em;
+      padding: 0;
     }
 
     .novel-p {
@@ -233,17 +233,24 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-left: 0.4em;
-      width: 1.5em;
-      height: 1.5em;
+      margin-left: 0.42em;
+      width: 1.42em;
+      height: 1.42em;
       border-radius: 50%;
       border: 1px solid rgba(111, 85, 58, 0.25);
       background: rgba(111, 85, 58, 0.08);
       color: var(--accent);
-      font-size: 0.7em;
+      font-size: 0.68em;
       vertical-align: middle;
       padding: 0;
       transform: translateY(-1px);
+    }
+
+    .tri.has-comment {
+      border-color: rgba(78, 128, 84, 0.48);
+      background: rgba(78, 128, 84, 0.14);
+      color: #4e8054;
+      font-weight: 700;
     }
 
     .ai-note-inline {
@@ -459,7 +466,7 @@
     @media (max-width: 700px) {
       main { padding: 18px 14px 80px; }
       .brand { display: none; }
-      .novel { font-size: 17px; line-height: 1.7; }
+      .novel { font-size: 17px; line-height: 1.46; }
       .reader-head h1 { font-size: 24px; }
       .ai-note-inline { margin-left: 1.4em; max-width: 96%; }
     }
@@ -550,7 +557,7 @@
           ? text.myNotes.map(n => n.note || "").filter(Boolean).join("\n\n")
           : "";
 
-        const rawParagraphs = Array.isArray(text.paragraphs)
+        let rawParagraphs = Array.isArray(text.paragraphs)
           ? text.paragraphs.map((p, i) => ({
               id: p.id || uid("p"),
               index: i,
@@ -563,6 +570,17 @@
               text: p,
               chatHistory: []
             }));
+
+        // 兼容之前被“一句话一段”切坏的旧文本：
+        // 只有在还没有聊天记录、没有 AI 批注时才自动重分，避免破坏已有索引。
+        if (shouldAutoResegment(text, rawParagraphs)) {
+          rawParagraphs = smartSplitParagraphs(text.content || "").map((p, i) => ({
+            id: uid("p"),
+            index: i,
+            text: p,
+            chatHistory: []
+          }));
+        }
 
         return {
           ...text,
@@ -617,58 +635,135 @@
     }
 
     function sentenceLike(line) {
-      return /[。！？!?…」”）)]$/.test(line.trim());
+      const s = String(line || "").trim();
+      if (!s) return false;
+      const end = s[s.length - 1];
+      return "。！？!?…」”』）)]".includes(end);
+    }
+
+    function compactLen(str) {
+      let count = 0;
+      for (const ch of String(str || "")) {
+        if (ch.trim()) count += 1;
+      }
+      return count;
+    }
+
+    function splitSentences(text) {
+      const closers = "」”』）)]";
+      const stops = "。！？!?…";
+      const result = [];
+      let buf = "";
+
+      for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        buf += ch;
+
+        if (stops.includes(ch)) {
+          while (i + 1 < text.length && closers.includes(text[i + 1])) {
+            i += 1;
+            buf += text[i];
+          }
+          if (buf.trim()) result.push(buf.trim());
+          buf = "";
+        }
+      }
+
+      if (buf.trim()) result.push(buf.trim());
+      return result;
+    }
+
+    function splitByBlankLines(text) {
+      const NL = String.fromCharCode(10);
+      const blocks = [];
+      let buf = [];
+
+      for (const rawLine of text.split(NL)) {
+        const line = rawLine.trim();
+        if (!line) {
+          if (buf.length) {
+            blocks.push(buf.join(NL).trim());
+            buf = [];
+          }
+        } else {
+          buf.push(line);
+        }
+      }
+
+      if (buf.length) blocks.push(buf.join(NL).trim());
+      return blocks.filter(Boolean);
     }
 
     function smartSplitParagraphs(text) {
+      const NL = String.fromCharCode(10);
+      const CR = String.fromCharCode(13);
+      const TAB = String.fromCharCode(9);
+      const NBSP = String.fromCharCode(160);
+
       const clean = String(text || "")
-        .replace(/\r/g, "")
-        .replace(/[\t\u00a0]+/g, " ")
+        .split(CR).join("")
+        .split(TAB).join(" ")
+        .split(NBSP).join(" ")
         .trim();
 
       if (!clean) return [];
 
-      const blankBlocks = clean
-        .split(/\n\s*\n+/)
-        .map(p => p.trim())
-        .filter(Boolean);
-
+      // 1. 最优先：尊重作者自己用空行打出来的自然段。
+      // 只要你原文里段落之间有空行，这里就不会再把一句话拆成一个阅读段。
+      const blankBlocks = splitByBlankLines(clean);
       if (blankBlocks.length >= 2) {
-        return blankBlocks.flatMap(block => packShortLines(block));
+        return blankBlocks.flatMap(block => normalizeAuthorParagraph(block));
       }
 
-      return packShortLines(clean);
+      // 2. 没有空行，但有单换行：这通常有两种情况：
+      // A. 你每段手动换行；B. 编辑器把一句一句/一行一行折开。
+      // 这里会把短行继续合并，避免每句话后面都有三角形。
+      const lines = clean.split(NL).map(line => line.trim()).filter(Boolean);
+      if (lines.length >= 2) {
+        const avgLen = lines.reduce((sum, line) => sum + compactLen(line), 0) / lines.length;
+        const veryShortRate = lines.filter(line => compactLen(line) <= 45).length / lines.length;
+        const sentenceEndRate = lines.filter(sentenceLike).length / lines.length;
+
+        // 短行多，或每行都像一句话：合并成 260-520 字左右的阅读段。
+        if (avgLen < 120 || veryShortRate > 0.35 || sentenceEndRate > 0.72) {
+          return packAuthorLines(lines);
+        }
+
+        // 如果每行本来就比较长，更像作者自然段，就保留为段落；过长才温和拆开。
+        return lines.flatMap(line => normalizeAuthorParagraph(line));
+      }
+
+      // 3. 完全没有换行：按 420-680 字左右合成阅读段。
+      // 注意：不是一句话一段，而是多句话组成一个可聊天的段落。
+      return packLongParagraph(clean, 420, 680);
     }
 
-    function packShortLines(block) {
-      const lines = block
-        .split(/\n+/)
-        .map(line => line.trim())
-        .filter(Boolean);
+    function normalizeAuthorParagraph(block) {
+      const NL = String.fromCharCode(10);
+      const one = String(block || "").split(NL).map(line => line.trim()).filter(Boolean).join(NL);
+      const len = compactLen(one);
 
-      if (!lines.length) return [];
+      // 20,000 字以内的短篇，作者自然段不乱拆；只有很长的段才拆。
+      if (len <= 1100) return [one];
+      return packLongParagraph(one.split(NL).join(""), 520, 760);
+    }
 
-      // 如果原文几乎没有换行，就按中文句读智能合并成阅读段。
-      if (lines.length === 1) {
-        return packSentences(lines[0]);
-      }
-
+    function packAuthorLines(lines) {
+      const NL = String.fromCharCode(10);
       const result = [];
       let buf = "";
 
       for (const line of lines) {
-        const next = buf ? buf + "\n" + line : line;
-        const plainLen = next.replace(/\s/g, "").length;
+        const next = buf ? buf + NL + line : line;
+        const plainLen = compactLen(next);
 
-        if (!buf) {
-          buf = line;
-          continue;
-        }
+        // 这里故意把阈值调高，避免一句话/两句话就生成一个三角形。
+        const closeByLength = plainLen >= 520;
+        const closeByNaturalStop = plainLen >= 300 && sentenceLike(line);
+        const closeByDialogueTurn = plainLen >= 260 && /[。！？!?…」”』）)]$/.test(line) && /^「|^“|^『/.test(line.trim());
 
-        const shouldClose = plainLen >= 220 || (plainLen >= 120 && sentenceLike(line));
-
-        if (shouldClose) {
-          result.push(next);
+        if (closeByLength || closeByNaturalStop || closeByDialogueTurn) {
+          result.push(next.trim());
           buf = "";
         } else {
           buf = next;
@@ -679,31 +774,41 @@
       return result;
     }
 
-    function packSentences(text) {
-      const sentences = text
-        .replace(/([。！？!?…]+[」”』）)]?)/g, "$1\n")
-        .split(/\n+/)
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      if (sentences.length <= 1) return [text];
+    function packLongParagraph(text, softLimit = 420, hardLimit = 680) {
+      const sentences = splitSentences(String(text || ""));
+      if (sentences.length <= 1) return [String(text || "")];
 
       const result = [];
       let buf = "";
 
-      for (const s of sentences) {
-        const next = buf ? buf + s : s;
-        const len = next.length;
-        if (len >= 180 || (len >= 110 && /[。！？!?…」”』）)]$/.test(s))) {
-          result.push(next);
+      for (const sentence of sentences) {
+        const next = buf ? buf + sentence : sentence;
+        const len = compactLen(next);
+
+        // 至少攒到 softLimit 附近才切，hardLimit 是兜底。
+        if (len >= hardLimit || (len >= softLimit && sentenceLike(sentence))) {
+          result.push(next.trim());
           buf = "";
         } else {
           buf = next;
         }
       }
 
-      if (buf) result.push(buf);
+      if (buf.trim()) result.push(buf.trim());
       return result;
+    }
+
+    function shouldAutoResegment(text, paragraphs) {
+      if (!text || !text.content || !Array.isArray(paragraphs) || paragraphs.length < 8) return false;
+
+      const hasChat = paragraphs.some(p => Array.isArray(p.chatHistory) && p.chatHistory.length);
+      const hasComments = Array.isArray(text.aiComments) && text.aiComments.length;
+      if (hasChat || hasComments) return false;
+
+      const avgLen = paragraphs.reduce((sum, p) => sum + compactLen(p.text || ""), 0) / paragraphs.length;
+      const tooManyTinyParas = paragraphs.filter(p => compactLen(p.text || "") <= 70).length / paragraphs.length > 0.65;
+
+      return avgLen < 90 || tooManyTinyParas;
     }
 
     function getText(id) {
@@ -799,15 +904,9 @@
             <section class="para-wrap">
               <p class="novel-p">
                 ${escapeHtml(p.text)}
-                <button class="tri" onclick="openChatPanel('${text.id}', ${i})" title="聊聊这一段" aria-label="聊聊这一段">▸</button>
+                <button class="tri ${commentsFor(text, i).length ? "has-comment" : ""}" onclick="openChatPanel('${text.id}', ${i})" title="${commentsFor(text, i).length ? "查看 AI 批注并聊聊这一段" : "聊聊这一段"}" aria-label="${commentsFor(text, i).length ? "查看 AI 批注并聊聊这一段" : "聊聊这一段"}">▸</button>
               </p>
 
-              ${commentsFor(text, i).map(c => `
-                <div class="ai-note-inline">
-                  <span class="tag">${escapeHtml(c.tag || "AI")}</span>
-                  ${escapeHtml(c.comment || "")}
-                </div>
-              `).join("")}
             </section>
           `).join("")}
         </article>
@@ -1141,11 +1240,26 @@
       const i = currentChat.paragraphIndex;
       const p = text.paragraphs[i];
       const history = p.chatHistory || [];
+      const paraComments = commentsFor(text, i);
 
       openPanel(
         `第 ${i + 1} 段`,
         `
           <div class="current-para">${escapeHtml(p.text)}</div>
+
+          ${paraComments.length ? `
+            <div class="memo-box">
+              <h3>AI 对这一段的批注</h3>
+              ${paraComments.map(c => `
+                <div class="ai-note-inline" style="margin-left:0; max-width:100%;">
+                  <span class="tag">${escapeHtml(c.tag || "AI")}</span>
+                  ${escapeHtml(c.comment || "")}
+                </div>
+              `).join("")}
+            </div>
+          ` : `
+            <p class="small">这一段暂时没有 AI 批注。你可以直接在下面问它。</p>
+          `}
 
           ${history.length ? history.map((m, idx) => `
             <div class="chat-msg ${m.role === "user" ? "chat-user" : "chat-ai"}">
