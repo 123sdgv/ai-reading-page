@@ -1,521 +1,1313 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>AI 阅读器</title>
-<style>
-:root{
-  --paper:#f7f1e8;--ink:#2b251f;--muted:#8a7a68;--line:#dfd0be;
-  --panel:#fffaf3;--accent:#6f553a;--ai:#8a5f2d;
-  --ai-bg:rgba(243,229,207,.55);--dark:#2d241c;
-  --card:rgba(255,255,255,.6);--top-h:52px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;font-size:15px;line-height:1.6}
-button,input,textarea,select{font:inherit}
-button{border:none;cursor:pointer;border-radius:999px}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 阅读器</title>
 
-.btn{padding:6px 14px;font-size:14px;background:var(--dark);color:#fff}
-.btn-s{padding:4px 10px;font-size:12px;background:rgba(111,85,58,.1);color:var(--accent);border:1px solid rgba(111,85,58,.15)}
-.btn-ghost{padding:4px 10px;font-size:13px;background:transparent;color:var(--muted)}
-.btn-icon{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;background:rgba(255,255,255,.5);color:var(--ink);border:1px solid var(--line)}
+  <style>
+    :root {
+      --paper: #f7f1e8;
+      --paper-deep: #efe5d8;
+      --ink: #2b251f;
+      --muted: #8a7a68;
+      --line: #dfd0be;
+      --panel: #fffaf3;
+      --accent: #6f553a;
+      --ai: #8a5f2d;
+      --ai-bg: #f3e5cf;
+      --dark: #2d241c;
+      --panel-width: 470px;
+    }
 
-input,textarea,select{width:100%;border:1px solid var(--line);background:#fffaf3;color:var(--ink);border-radius:10px;padding:8px 10px;outline:none}
-textarea{resize:vertical;min-height:60px;line-height:1.6}
-label{display:block;margin:12px 0 4px;font-size:12px;color:var(--muted)}
+    * { box-sizing: border-box; }
 
-/* ---- topbar ---- */
-.topbar{height:var(--top-h);position:sticky;top:0;z-index:20;background:rgba(247,241,232,.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(223,208,190,.7);display:flex;align-items:center;justify-content:space-between;padding:0 12px}
-.topbar .seg{display:flex;align-items:center;gap:8px}
-.brand{font-size:14px;color:var(--muted);letter-spacing:.06em}
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif;
+      overflow-x: hidden;
+    }
 
-/* ---- layout ---- */
-.app{display:flex;height:calc(100vh - var(--top-h))}
-.main-pane{flex:1;overflow-y:auto;padding:20px 18px 80px;min-width:0}
-.side-pane{width:0;flex-shrink:0;overflow:hidden;background:var(--panel);display:flex;flex-direction:column;transition:width .25s ease}
-.side-pane.open{width:390px;border-left:1px solid var(--line)}
-.side-head{min-height:46px;padding:8px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
-.side-head h2{font-size:15px;font-weight:600}
-.side-body{flex:1;overflow-y:auto;padding:12px 14px}
-.side-foot{border-top:1px solid var(--line);padding:10px 12px;display:none;gap:8px;align-items:flex-end}
-.side-foot.on{display:flex}
-.side-foot textarea{min-height:44px;max-height:120px;flex:1}
+    button, input, textarea, select { font: inherit; }
 
-/* ---- home ---- */
-.home-wrap{max-width:600px;margin:0 auto}
-.empty{min-height:50vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);line-height:1.8}
-.book-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 18px;margin-bottom:12px;cursor:pointer;transition:box-shadow .15s}
-.book-card:hover{box-shadow:0 4px 16px rgba(74,55,35,.08)}
-.book-card h2{font-size:18px;font-weight:600;margin-bottom:6px}
-.meta{color:var(--muted);font-size:13px;line-height:1.6}
+    button {
+      border: none;
+      background: var(--dark);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
 
-/* ---- reader ---- */
-.reader-head{max-width:680px;margin:0 auto 14px;padding-bottom:12px;border-bottom:1px solid rgba(223,208,190,.6)}
-.reader-head h1{font-size:22px;font-weight:650;margin-bottom:4px}
-.reader-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.novel-wrap{max-width:680px;margin:0 auto}
-.novel{font-family:"Songti SC","STSong","Noto Serif SC",serif;font-size:17px;line-height:1.75;letter-spacing:.015em}
-.novel-p{text-indent:2em;margin-bottom:.35em;white-space:pre-wrap}
-.para-btn{display:inline-flex;align-items:center;justify-content:center;width:1.15em;height:1.15em;border-radius:50%;border:1px solid rgba(111,85,58,.2);background:rgba(111,85,58,.06);color:var(--accent);font-size:.6em;vertical-align:middle;margin-left:.25em;cursor:pointer;padding:0;transition:background .15s}
-.para-btn:hover{background:rgba(111,85,58,.18)}
+    button.secondary {
+      background: rgba(255,255,255,0.55);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
 
-.ai-inline{margin:.15em 0 .45em 2em;padding:5px 10px;border-left:3px solid rgba(138,95,45,.4);background:var(--ai-bg);color:var(--ai);font-family:-apple-system,sans-serif;font-size:13px;line-height:1.55;border-radius:8px;max-width:88%}
-.ai-inline .tag{display:inline-block;font-size:11px;background:rgba(138,95,45,.7);color:#fff;border-radius:999px;padding:0 6px;margin-right:4px}
+    button.ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid transparent;
+      padding: 4px 8px;
+    }
 
-/* ---- note cards ---- */
-.nc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px;margin-bottom:10px}
-.nc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
-.nc-type{font-size:11px;padding:1px 7px;border-radius:999px;font-weight:500}
-.t-ai{background:rgba(138,95,45,.15);color:var(--ai)}
-.t-my{background:rgba(111,85,58,.1);color:var(--accent)}
-.t-ex{background:rgba(90,130,60,.15);color:#5a7a3a}
-.nc-time{font-size:11px;color:var(--muted)}
-.nc-body{font-size:13px;line-height:1.6;white-space:pre-wrap}
-.nc-foot{display:flex;gap:6px;margin-top:6px}
+    button.mini {
+      font-size: 12px;
+      padding: 4px 9px;
+      background: rgba(111, 85, 58, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(111, 85, 58, 0.18);
+    }
 
-/* ---- chat ---- */
-.ctx-para{background:var(--ai-bg);border:1px solid rgba(223,208,190,.8);border-radius:12px;padding:9px 11px;margin-bottom:10px;font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:110px;overflow-y:auto}
-.cm{margin-bottom:10px;padding:9px 11px;border-radius:14px;font-size:14px;line-height:1.6;white-space:pre-wrap}
-.cm-u{margin-left:28px;background:var(--dark);color:#fff}
-.cm-a{margin-right:28px;background:rgba(111,85,58,.1);border:1px solid rgba(111,85,58,.1)}
-.cm-acts{display:flex;gap:6px;margin-top:5px}
+    button.icon {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
 
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:rgba(45,36,28,.9);color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;z-index:100;display:none;pointer-events:none}
-.load-mask{position:fixed;inset:0;z-index:90;background:rgba(247,241,232,.6);display:none;align-items:center;justify-content:center;flex-direction:column;gap:8px;font-size:14px;color:var(--muted)}
-.load-mask.on{display:flex}
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fffaf3;
+      color: var(--ink);
+      border-radius: 14px;
+      padding: 10px 12px;
+      outline: none;
+    }
 
-.small{color:var(--muted);font-size:13px;line-height:1.6}
-.gap{display:flex;gap:8px;flex-wrap:wrap}
-.mt{margin-top:10px}
+    textarea {
+      resize: vertical;
+      min-height: 150px;
+      line-height: 1.62;
+    }
 
-@media(max-width:768px){
-  .side-pane.open{position:fixed;top:var(--top-h);right:0;bottom:0;width:100%;z-index:30;box-shadow:-4px 0 20px rgba(0,0,0,.1)}
-  .novel{font-size:16px}
-  .main-pane{padding:14px 12px 80px}
-  .reader-head h1{font-size:20px}
-  .brand{display:none}
-}
-</style>
+    label {
+      display: block;
+      margin: 16px 0 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .topbar {
+      height: 58px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(247, 241, 232, 0.9);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(223, 208, 190, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
+
+    .left-actions, .right-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand {
+      font-size: 15px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    main {
+      width: min(860px, 100%);
+      margin: 0 auto;
+      padding: 24px 18px 90px;
+      transition: width 0.22s ease, margin 0.22s ease, padding 0.22s ease;
+    }
+
+    body.panel-open main {
+      width: calc(100vw - var(--panel-width));
+      margin-left: 0;
+      margin-right: var(--panel-width);
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+
+    body.panel-open .reader-head,
+    body.panel-open .novel {
+      width: min(680px, 100%);
+    }
+
+    .empty {
+      min-height: 58vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.9;
+    }
+
+    .home-list {
+      display: grid;
+      gap: 14px;
+      width: min(620px, 100%);
+      margin: 24px auto 0;
+    }
+
+    .book-card {
+      background: rgba(255, 250, 243, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px 20px;
+      cursor: pointer;
+      box-shadow: 0 10px 26px rgba(74, 55, 35, 0.04);
+    }
+
+    .book-card h2 {
+      margin: 0 0 9px;
+      font-size: 21px;
+      font-weight: 650;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .reader-head {
+      width: min(720px, 100%);
+      margin: 0 auto 18px;
+      padding: 8px 0 16px;
+      border-bottom: 1px solid rgba(223, 208, 190, 0.65);
+    }
+
+    .reader-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .reader-head h1 {
+      margin: 0 0 8px;
+      font-size: 27px;
+      font-weight: 650;
+      letter-spacing: 0.03em;
+    }
+
+    .reader-head .summary {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .novel {
+      width: min(720px, 100%);
+      margin: 0 auto;
+      font-family: "Songti SC", "STSong", "Noto Serif SC", "PingFang SC", serif;
+      font-size: 18px;
+      line-height: 1.72;
+      letter-spacing: 0.015em;
+    }
+
+    .para-wrap {
+      margin: 0 0 0.85em;
+      padding: 0.1em 0;
+    }
+
+    .novel-p {
+      margin: 0;
+      text-indent: 2em;
+      white-space: pre-wrap;
+    }
+
+    .tri {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 0.4em;
+      width: 1.5em;
+      height: 1.5em;
+      border-radius: 50%;
+      border: 1px solid rgba(111, 85, 58, 0.25);
+      background: rgba(111, 85, 58, 0.08);
+      color: var(--accent);
+      font-size: 0.7em;
+      vertical-align: middle;
+      padding: 0;
+      transform: translateY(-1px);
+    }
+
+    .ai-note-inline {
+      margin: 0.32em 0 0.85em 2.4em;
+      padding: 8px 12px;
+      max-width: 92%;
+      border-left: 3px solid rgba(138, 95, 45, 0.45);
+      background: rgba(243, 229, 207, 0.52);
+      color: var(--ai);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+      letter-spacing: 0;
+      border-radius: 10px;
+    }
+
+    .ai-note-inline .tag {
+      display: inline-block;
+      margin-right: 6px;
+      font-size: 12px;
+      color: #fff;
+      background: rgba(138, 95, 45, 0.78);
+      border-radius: 999px;
+      padding: 1px 7px;
+    }
+
+    .panel-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(45, 36, 28, 0.28);
+      display: none;
+    }
+
+    .panel-mask.open { display: none; }
+
+    .panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: var(--panel-width);
+      max-width: 94vw;
+      height: 100vh;
+      z-index: 60;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      transform: translateX(105%);
+      transition: transform 0.22s ease;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -16px 0 42px rgba(74, 55, 35, 0.12);
+    }
+
+    .panel.open { transform: translateX(0); }
+
+    .panel-header {
+      min-height: 60px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-header h2 { margin: 0; font-size: 18px; }
+
+    .panel-body {
+      padding: 16px;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .panel-footer {
+      border-top: 1px solid var(--line);
+      padding: 12px;
+      display: none;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .panel-footer textarea {
+      min-height: 48px;
+      max-height: 140px;
+      flex: 1;
+    }
+
+    .memo-box, .note-card {
+      background: rgba(255,255,255,0.48);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .memo-box h3, .note-card h3 {
+      margin: 0 0 10px;
+      font-size: 17px;
+    }
+
+    .note-card {
+      background: rgba(243, 229, 207, 0.42);
+    }
+
+    .note-card .time {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .memo-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 10px 0 0;
+    }
+
+    .current-para {
+      background: rgba(243, 229, 207, 0.55);
+      border: 1px solid rgba(223, 208, 190, 0.9);
+      border-radius: 18px;
+      padding: 13px;
+      margin-bottom: 14px;
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--ink);
+      white-space: pre-wrap;
+    }
+
+    .chat-msg {
+      margin-bottom: 12px;
+      padding: 12px 13px;
+      border-radius: 17px;
+      font-size: 15px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .chat-user {
+      margin-left: 34px;
+      background: var(--dark);
+      color: white;
+    }
+
+    .chat-ai {
+      margin-right: 34px;
+      background: rgba(111, 85, 58, 0.12);
+      color: var(--ink);
+      border: 1px solid rgba(111, 85, 58, 0.13);
+    }
+
+    .thinking {
+      margin-right: 34px;
+      background: rgba(111, 85, 58, 0.08);
+      color: var(--muted);
+      border: 1px dashed rgba(111, 85, 58, 0.25);
+    }
+
+    .dot::after {
+      content: "";
+      animation: dots 1.1s infinite;
+    }
+
+    @keyframes dots {
+      0% { content: ""; }
+      33% { content: "."; }
+      66% { content: ".."; }
+      100% { content: "..."; }
+    }
+
+    .chat-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      background: rgba(45, 36, 28, 0.92);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      z-index: 100;
+      display: none;
+    }
+
+    .loading { opacity: 0.66; pointer-events: none; }
+
+    @media (max-width: 920px) {
+      body.panel-open main {
+        width: 100%;
+        margin: 0 auto;
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .panel-mask.open { display: block; }
+
+      .panel { width: min(470px, 94vw); }
+    }
+
+    @media (max-width: 700px) {
+      main { padding: 18px 14px 80px; }
+      .brand { display: none; }
+      .novel { font-size: 17px; line-height: 1.7; }
+      .reader-head h1 { font-size: 24px; }
+      .ai-note-inline { margin-left: 1.4em; max-width: 96%; }
+    }
+  </style>
 </head>
 
 <body>
-<header class="topbar">
-  <div class="seg">
-    <button class="btn-icon" onclick="toggleSide('notes')" title="阅读笔记">📝</button>
-    <button class="btn-icon" onclick="toggleSide('settings')" title="设置">⚙</button>
-  </div>
-  <div class="brand">AI 阅读器</div>
-  <div class="seg">
-    <button class="btn-icon" onclick="$('fileIn').click()" title="上传 TXT">＋</button>
-    <input id="fileIn" type="file" accept=".txt,text/plain" hidden onchange="handleUpload(event)"/>
-  </div>
-</header>
+  <header class="topbar">
+    <div class="left-actions">
+      <button class="icon secondary" onclick="openNotesPanel()" title="阅读笔记" aria-label="阅读笔记">笔</button>
+      <button class="icon secondary" onclick="openSettingsPanel()" title="API 设置" aria-label="API 设置">设</button>
+    </div>
 
-<div class="app">
-  <main id="main" class="main-pane"></main>
-  <aside id="side" class="side-pane">
-    <div class="side-head"><h2 id="sideTitle">面板</h2><button class="btn-s" onclick="closeSide()">关闭</button></div>
-    <div id="sideBody" class="side-body"></div>
-    <div id="sideFoot" class="side-foot"></div>
+    <div class="brand">AI 阅读器</div>
+
+    <div class="right-actions">
+      <button class="icon" onclick="document.getElementById('fileInput').click()" title="上传 TXT" aria-label="上传 TXT">＋</button>
+      <input id="fileInput" type="file" accept=".txt,text/plain" hidden onchange="handleFileUpload(event)" />
+    </div>
+  </header>
+
+  <main id="main"></main>
+
+  <div id="panelMask" class="panel-mask" onclick="closePanel()"></div>
+
+  <aside id="panel" class="panel">
+    <div class="panel-header">
+      <h2 id="panelTitle">面板</h2>
+      <button class="secondary" onclick="closePanel()">关闭</button>
+    </div>
+    <div id="panelBody" class="panel-body"></div>
+    <div id="panelFooter" class="panel-footer"></div>
   </aside>
-</div>
 
-<div id="loadMask" class="load-mask"><div>⏳ AI 正在阅读…</div><div class="small">首次上传需要等待较长时间</div></div>
-<div id="toast" class="toast"></div>
+  <div id="toast" class="toast"></div>
 
-<script>
-/* ========== helpers ========== */
-const $=id=>document.getElementById(id);
-const uid=p=>p+'_'+Math.random().toString(36).slice(2)+Date.now().toString(36);
-const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-function fmtDate(iso){if(!iso)return'';const d=new Date(iso);return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')}
-function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',1800)}
+  <script>
+    const STORAGE_KEY = "ai_reader_v3";
 
-/* ========== smart split ========== */
-function smartSplit(raw){
-  let t=raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim();
-  // 1) try double newline
-  let parts=t.split(/\n\s*\n+/).map(s=>s.trim()).filter(Boolean);
-  // if very few parts, try single newline
-  if(parts.length<=2&&t.length>400){
-    parts=t.split(/\n/).map(s=>s.trim()).filter(Boolean);
-  }
-  if(!parts.length) return [t];
-  // 2) merge short non-dialogue lines
-  const merged=[];let buf='';
-  for(const p of parts){
-    const isDlg=/^[\u201c\u300c\u300e\u3010\uff08"'\u2018]/.test(p);
-    if(!buf){buf=p;continue}
-    if(buf.length<60&&p.length<60&&!isDlg&&!/[\u201c\u300c]/.test(buf)){
-      buf+='\n'+p;
-    }else{
-      merged.push(buf);buf=p;
+    let state = loadState();
+    let currentTextId = null;
+    let currentChat = null;
+    let thinkingTimer = null;
+    let thinkingStartedAt = null;
+
+    function defaultState() {
+      return {
+        settings: {
+          workerUrl: "https://ai-reader-proxy.shun83258.workers.dev",
+          memoryMode: "none"
+        },
+        texts: []
+      };
     }
-  }
-  if(buf)merged.push(buf);
-  // 3) split overly long blocks
-  const out=[];
-  for(const b of merged){
-    if(b.length>500){
-      out.push(...splitLong(b,200,450));
-    }else out.push(b);
-  }
-  return out.filter(Boolean);
-}
-function splitLong(txt,mn,mx){
-  const r=[];let rem=txt;
-  while(rem.length>mx){
-    let idx=-1;
-    for(let i=mn;i<mx&&i<rem.length;i++){
-      if(/[。！？…\u201d\u300d\uff09]/.test(rem[i]))idx=i+1;
-    }
-    if(idx<0)idx=mx;
-    r.push(rem.slice(0,idx).trim());rem=rem.slice(idx).trim();
-  }
-  if(rem)r.push(rem);
-  return r;
-}
 
-/* ========== state ========== */
-const SK='ai_reader_v3';
-let S=loadS(), curText=null, sideMode=null, chatIdx=null;
+    function loadState() {
+      try {
+        const savedV3 = localStorage.getItem(STORAGE_KEY);
+        if (savedV3) return normalizeState(JSON.parse(savedV3));
 
-function defS(){return{settings:{workerUrl:'https://ai-reader-proxy.shun83258.workers.dev',memoryMode:'none'},texts:[]}}
-function loadS(){
-  try{
-    for(const k of[SK,'ai_reader_v2','ai_reader_v1']){const r=localStorage.getItem(k);if(r)return migrate(JSON.parse(r))}
-  }catch(e){}
-  return defS();
-}
-function migrate(s){
-  const b=defS(),o={...b,...s,settings:{...b.settings,...(s.settings||{})},texts:[]};
-  o.texts=(Array.isArray(s.texts)?s.texts:[]).map(t=>{
-    let paras=(Array.isArray(t.paragraphs)?t.paragraphs:[]).map(p=>({
-      id:p.id||uid('p'),text:typeof p==='string'?p:(p.text||''),chatHistory:Array.isArray(p.chatHistory)?p.chatHistory:[]
-    }));
-    let cards=Array.isArray(t.noteCards)?t.noteCards:[];
-    if(!cards.length){
-      if(t.aiMemo||t.aiReadingNote)cards.push({id:uid('nc'),type:'ai-summary',title:'AI 初读笔记',content:t.aiMemo||t.aiReadingNote||'',createdAt:t.createdAt||new Date().toISOString()});
-      if(t.myMemo)cards.push({id:uid('nc'),type:'my-note',title:'我的笔记',content:t.myMemo,createdAt:t.createdAt||new Date().toISOString()});
-    }
-    return{id:t.id||uid('t'),title:t.title||'未命名',content:t.content||'',paragraphs:paras,aiComments:Array.isArray(t.aiComments)?t.aiComments:[],noteCards:cards,createdAt:t.createdAt||new Date().toISOString(),updatedAt:t.updatedAt||new Date().toISOString()};
-  });
-  return o;
-}
-function save(){try{localStorage.setItem(SK,JSON.stringify(S))}catch(e){toast('存储空间不足')}}
-function getT(id){return S.texts.find(t=>t.id===id)}
+        const savedV2 = localStorage.getItem("ai_reader_v2");
+        if (savedV2) return normalizeState(JSON.parse(savedV2));
 
-/* ========== cross-text memory ========== */
-function textAiNote(t){
-  return t.noteCards.filter(c=>c.type!=='my-note').map(c=>c.content).join('\n\n');
-}
-function collectAi(exId){
-  return S.texts.filter(t=>t.id!==exId).map(t=>{
-    const n=t.noteCards.filter(c=>c.type!=='my-note').map(c=>c.content).join('\n');
-    return n?`《${t.title}》\n${n}`:'';
-  }).filter(Boolean).slice(-5);
-}
-function collectMy(exId){
-  return S.texts.filter(t=>t.id!==exId).map(t=>{
-    const n=t.noteCards.filter(c=>c.type==='my-note').map(c=>c.content).join('\n');
-    return n?`《${t.title}》\n${n}`:'';
-  }).filter(Boolean).slice(-5);
-}
+        const old = localStorage.getItem("ai_reader_v1");
+        if (old) return normalizeState(JSON.parse(old));
 
-/* ========== API ========== */
-async function callW(path,body){
-  const base=S.settings.workerUrl.replace(/\/$/,'');
-  const res=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const txt=await res.text();
-  let d;try{d=JSON.parse(txt)}catch(e){throw new Error(txt||'Worker 返回非 JSON')}
-  if(!res.ok||d.error)throw new Error(d.message||'请求失败');
-  return d;
-}
-
-/* ========== render: home ========== */
-function renderHome(){
-  curText=null;closeSide();
-  const m=$('main');
-  if(!S.texts.length){
-    m.innerHTML='<div class="empty"><div><h1 style="margin-bottom:8px">这里暂时是空白</h1><p>点右上角「＋」上传 TXT 文件<br>AI 会自动分段、批注并生成阅读笔记</p></div></div>';
-    return;
-  }
-  m.innerHTML='<div class="home-wrap">'+S.texts.map(t=>`
-    <div class="book-card" onclick="openReader('${t.id}')">
-      <h2>${esc(t.title)}</h2>
-      <div class="meta">${t.content.length} 字 · ${t.paragraphs.length} 段 · 笔记 ${t.noteCards.length} 条<br>${fmtDate(t.updatedAt)}</div>
-    </div>`).join('')+'</div>';
-}
-
-/* ========== render: reader ========== */
-function openReader(id){
-  const t=getT(id);if(!t)return renderHome();
-  curText=id;t.updatedAt=new Date().toISOString();save();
-  renderArticle();
-}
-function renderArticle(){
-  const t=getT(curText);if(!t)return renderHome();
-  const comments=t.aiComments||[];
-  $('main').innerHTML=`
-    <section class="reader-head">
-      <div class="reader-tools">
-        <button class="btn-s" onclick="renderHome()">← 书架</button>
-        <button class="btn-s" onclick="toggleSide('notes')">📝 笔记</button>
-        <button class="btn-s" onclick="aiResplit()">AI 重新分段</button>
-        <button class="btn-s" onclick="delText('${t.id}')">删除</button>
-      </div>
-      <h1>${esc(t.title)}</h1>
-      <div class="meta">${t.content.length} 字 · ${t.paragraphs.length} 段</div>
-    </section>
-    <article class="novel-wrap"><div class="novel">${t.paragraphs.map((p,i)=>{
-      const cs=comments.filter(c=>Number(c.paragraphIndex)===i);
-      return`<section><p class="novel-p">${esc(p.text)}<button class="para-btn" onclick="openChat(${i})" title="聊聊这段">▸</button></p>${cs.map(c=>`<div class="ai-inline"><span class="tag">${esc(c.tag||'AI')}</span>${esc(c.comment||'')}</div>`).join('')}</section>`;
-    }).join('')}</div></article>`;
-}
-
-/* ========== side panel core ========== */
-function openSide(mode){
-  sideMode=mode;$('side').classList.add('open');renderSide();
-}
-function closeSide(){
-  sideMode=null;chatIdx=null;$('side').classList.remove('open');
-  $('sideFoot').className='side-foot';$('sideFoot').innerHTML='';
-}
-function toggleSide(mode){
-  if(sideMode===mode){closeSide();return}
-  openSide(mode);
-}
-function renderSide(){
-  if(sideMode==='chat')renderChat();
-  else if(sideMode==='notes')renderNotes();
-  else if(sideMode==='all-notes')renderAllNotes();
-  else if(sideMode==='settings')renderSettings();
-}
-
-/* ========== side: chat ========== */
-function openChat(idx){
-  chatIdx=idx;openSide('chat');
-}
-function renderChat(){
-  const t=getT(curText);
-  if(!t||chatIdx==null){closeSide();return}
-  const p=t.paragraphs[chatIdx];if(!p)return;
-  const h=p.chatHistory||[];
-  $('sideTitle').textContent=`第 ${chatIdx+1} 段`;
-  $('sideBody').innerHTML=`
-    <div class="ctx-para">${esc(p.text.length>200?p.text.slice(0,200)+'…':p.text)}</div>
-    ${h.length?h.map((m,i)=>`
-      <div class="cm ${m.role==='user'?'cm-u':'cm-a'}">${esc(m.content)}
-        ${m.role==='assistant'?`<div class="cm-acts"><button class="btn-s" onclick="saveAsCard(${i})">📌 存为笔记</button></div>`:''}
-      </div>`).join(''):'<p class="small">和 AI 聊聊这一段。AI 能看到前后段落和你的阅读笔记。</p>'}`;
-  const ft=$('sideFoot');ft.className='side-foot on';
-  ft.innerHTML='<textarea id="chatIn" placeholder="说点什么…"></textarea><button class="btn" onclick="sendChat()">发送</button>';
-  // scroll to bottom
-  $('sideBody').scrollTop=$('sideBody').scrollHeight;
-}
-
-async function sendChat(){
-  const t=getT(curText);if(!t||chatIdx==null)return;
-  const inp=$('chatIn');const msg=inp.value.trim();if(!msg)return;
-  const p=t.paragraphs[chatIdx];
-  p.chatHistory=p.chatHistory||[];
-  p.chatHistory.push({role:'user',content:msg});
-  save();renderChat();
-  try{
-    const res=await callW('/chat',{
-      currentParagraph:p.text,
-      previousParagraph:(t.paragraphs[chatIdx-1]||{}).text||'',
-      nextParagraph:(t.paragraphs[chatIdx+1]||{}).text||'',
-      userMessage:msg,
-      chatHistory:p.chatHistory.slice(0,-1),
-      textAiNote:textAiNote(t),
-      memoryMode:S.settings.memoryMode,
-      aiNotes:collectAi(t.id),
-      myNotes:collectMy(t.id)
-    });
-    p.chatHistory.push({role:'assistant',content:res.reply||'AI 没有返回内容。'});
-  }catch(e){
-    p.chatHistory.push({role:'assistant',content:'出错了：'+e.message});
-  }
-  save();renderChat();
-}
-
-function saveAsCard(msgIdx){
-  const t=getT(curText);if(!t||chatIdx==null)return;
-  const p=t.paragraphs[chatIdx];
-  const m=(p.chatHistory||[])[msgIdx];if(!m)return;
-  t.noteCards.push({
-    id:uid('nc'),type:'chat-excerpt',
-    title:`第${chatIdx+1}段 · 对话摘录`,
-    content:m.content,
-    createdAt:new Date().toISOString()
-  });
-  save();toast('已保存为笔记卡片');
-}
-
-/* ========== side: notes ========== */
-function renderNotes(){
-  const t=getT(curText);
-  if(!t){renderAllNotes();return}
-  $('sideTitle').textContent='阅读笔记';
-  const cards=t.noteCards||[];
-  $('sideBody').innerHTML=`
-    <div class="small" style="margin-bottom:10px">《${esc(t.title)}》· ${cards.length} 条笔记</div>
-    ${cards.map(c=>`
-      <div class="nc">
-        <div class="nc-head">
-          <span class="nc-type ${c.type==='my-note'?'t-my':c.type==='chat-excerpt'?'t-ex':'t-ai'}">${c.type==='my-note'?'📝 我的':c.type==='chat-excerpt'?'💬 摘录':'🤖 AI'}</span>
-          <span class="nc-time">${fmtDate(c.createdAt)}</span>
-        </div>
-        <div style="font-size:13px;font-weight:500;margin-bottom:3px">${esc(c.title||'')}</div>
-        <div class="nc-body">${esc(c.content.length>300?c.content.slice(0,300)+'…':c.content)}</div>
-        <div class="nc-foot"><button class="btn-s" onclick="delCard('${c.id}')">删除</button></div>
-      </div>`).join('')}
-    <div style="margin-top:14px">
-      <textarea id="myNoteIn" placeholder="写一条你的阅读笔记…" style="min-height:50px"></textarea>
-      <div class="gap mt">
-        <button class="btn-s" onclick="addMyNote()">添加笔记</button>
-        <button class="btn-s" onclick="openSide('all-notes')">查看全部文章笔记</button>
-      </div>
-    </div>`;
-  $('sideFoot').className='side-foot';$('sideFoot').innerHTML='';
-}
-
-function addMyNote(){
-  const t=getT(curText);if(!t)return;
-  const inp=$('myNoteIn');const v=inp.value.trim();if(!v)return;
-  t.noteCards.push({id:uid('nc'),type:'my-note',title:'我的笔记',content:v,createdAt:new Date().toISOString()});
-  save();toast('笔记已添加');renderNotes();
-}
-function delCard(cid){
-  const t=getT(curText);if(!t)return;
-  t.noteCards=t.noteCards.filter(c=>c.id!==cid);save();renderNotes();
-}
-
-/* ========== side: all notes ========== */
-function renderAllNotes(){
-  sideMode='all-notes';
-  $('sideTitle').textContent='全部笔记';
-  $('sideBody').innerHTML=S.texts.length?S.texts.map(t=>`
-    <div style="margin-bottom:16px">
-      <div style="font-weight:600;margin-bottom:6px">${esc(t.title)}</div>
-      ${(t.noteCards||[]).slice(0,3).map(c=>`
-        <div class="nc">
-          <div class="nc-head"><span class="nc-type ${c.type==='my-note'?'t-my':c.type==='chat-excerpt'?'t-ex':'t-ai'}">${c.type==='my-note'?'📝':c.type==='chat-excerpt'?'💬':'🤖'}</span><span class="nc-time">${fmtDate(c.createdAt)}</span></div>
-          <div class="nc-body">${esc((c.content||'').slice(0,150))}</div>
-        </div>`).join('')}
-      ${t.noteCards.length>3?`<div class="small">还有 ${t.noteCards.length-3} 条…</div>`:''}
-      <button class="btn-s" onclick="openReader('${t.id}');openSide('notes')">打开</button>
-    </div>`).join(''):'<p class="small">暂无笔记</p>';
-  $('sideFoot').className='side-foot';$('sideFoot').innerHTML='';
-}
-
-/* ========== side: settings ========== */
-function renderSettings(){
-  $('sideTitle').textContent='设置';
-  $('sideBody').innerHTML=`
-    <label>Worker URL</label>
-    <input id="urlIn" value="${esc(S.settings.workerUrl)}" placeholder="https://xxx.workers.dev"/>
-    <label>跨文本记忆</label>
-    <select id="memIn">
-      <option value="none"${S.settings.memoryMode==='none'?' selected':''}>不读取其他文章笔记</option>
-      <option value="ai"${S.settings.memoryMode==='ai'?' selected':''}>只读取 AI 笔记</option>
-      <option value="all"${S.settings.memoryMode==='all'?' selected':''}>读取全部笔记</option>
-    </select>
-    <p class="small mt">API Key 存在 Worker 环境变量里，不经过浏览器。</p>
-    <div class="mt"><button class="btn" onclick="saveSetting()">保存</button></div>`;
-  $('sideFoot').className='side-foot';$('sideFoot').innerHTML='';
-}
-function saveSetting(){
-  S.settings.workerUrl=$('urlIn').value.trim();
-  S.settings.memoryMode=$('memIn').value;
-  save();toast('已保存');closeSide();
-}
-
-/* ========== upload & annotate ========== */
-async function handleUpload(ev){
-  const f=ev.target.files[0];ev.target.value='';if(!f)return;
-  if(!S.settings.workerUrl){toggleSide('settings');toast('请先填写 Worker URL');return}
-  const raw=await f.text();
-  const paras=smartSplit(raw);
-  if(!paras.length){toast('没有读到有效段落');return}
-
-  const t={
-    id:uid('t'),title:f.name.replace(/\.txt$/i,''),content:raw,
-    paragraphs:paras.map(p=>({id:uid('p'),text:p,chatHistory:[]})),
-    aiComments:[],noteCards:[],
-    createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
-  };
-  S.texts.unshift(t);save();openReader(t.id);
-
-  $('loadMask').classList.add('on');
-  try{
-    const res=await callW('/annotate',{
-      title:t.title,
-      paragraphs:t.paragraphs.map(p=>p.text),
-      memoryMode:S.settings.memoryMode,
-      aiNotes:collectAi(t.id),
-      myNotes:collectMy(t.id)
-    });
-    const p=res.parsed;
-    if(p){
-      t.aiComments=Array.isArray(p.comments)?p.comments:[];
-      const note=p.overallNote||'AI 已读完，但没有留下总结。';
-      t.noteCards.push({id:uid('nc'),type:'ai-summary',title:`AI 初读笔记 ·《${t.title}》`,content:note,createdAt:new Date().toISOString()});
-    }else{
-      t.noteCards.push({id:uid('nc'),type:'ai-summary',title:`AI 初读笔记 ·《${t.title}》`,content:res.raw||'AI 返回内容无法解析',createdAt:new Date().toISOString()});
-    }
-    save();renderArticle();
-  }catch(e){
-    t.noteCards.push({id:uid('nc'),type:'ai-summary',title:'AI 阅读失败',content:e.message,createdAt:new Date().toISOString()});
-    save();renderArticle();toast('AI 阅读失败：'+e.message);
-  }finally{
-    $('loadMask').classList.remove('on');
-  }
-}
-
-/* ========== AI re-split ========== */
-async function aiResplit(){
-  const t=getT(curText);if(!t)return;
-  if(!confirm('让 AI 重新分段？原有的段落聊天记录会丢失。'))return;
-  $('loadMask').classList.add('on');
-  try{
-    const res=await callW('/chat',{
-      currentParagraph:t.content.slice(0,18000),
-      previousParagraph:'',nextParagraph:'',
-      userMessage:'请将以上文本分成适合阅读的自然段落。规则：1）按原文语义和场景自然分段 2）每段100-500字左右 3）对话密集处可以几句合为一段 4）只输出分段后的原文，段落之间用 |||SPLIT||| 分隔 5）不要添加任何解释，不要修改原文',
-      chatHistory:[],textAiNote:'',memoryMode:'none',aiNotes:[],myNotes:[]
-    });
-    const parts=(res.reply||'').split('|||SPLIT|||').map(s=>s.trim()).filter(Boolean);
-    if(parts.length>=2){
-      t.paragraphs=parts.map(p=>({id:uid('p'),text:p,chatHistory:[]}));
-      t.aiComments=[];save();renderArticle();toast('AI 分段完成：'+parts.length+' 段');
-      // re-annotate
-      $('loadMask').querySelector('div').textContent='⏳ AI 正在批注…';
-      const res2=await callW('/annotate',{
-        title:t.title,paragraphs:t.paragraphs.map(p=>p.text),
-        memoryMode:S.settings.memoryMode,aiNotes:collectAi(t.id),myNotes:collectMy(t.id)
-      });
-      if(res2.parsed){
-        t.aiComments=Array.isArray(res2.parsed.comments)?res2.parsed.comments:[];
+        return defaultState();
+      } catch {
+        return defaultState();
       }
-      save();renderArticle();
-    }else{toast('AI 分段结果异常，保持原样');}
-  }catch(e){toast('AI 分段失败：'+e.message)}
-  finally{$('loadMask').classList.remove('on');$('loadMask').querySelector('div').textContent='⏳ AI 正在阅读…'}
-}
+    }
 
-/* ========== delete ========== */
-function delText(id){
-  const t=getT(id);if(!t)return;
-  if(!confirm(`确定删除《${t.title}》？所有内容将清除。`))return;
-  S.texts=S.texts.filter(x=>x.id!==id);save();renderHome();
-}
+    function normalizeState(input) {
+      const base = defaultState();
+      const next = {
+        ...base,
+        ...input,
+        settings: {
+          ...base.settings,
+          ...(input.settings || {})
+        },
+        texts: Array.isArray(input.texts) ? input.texts : []
+      };
 
-/* ========== init ========== */
-renderHome();
-</script>
+      next.texts = next.texts.map(text => {
+        const aiReadingNote = text.aiReadingNote || "";
+        const oldMyNotes = Array.isArray(text.myNotes)
+          ? text.myNotes.map(n => n.note || "").filter(Boolean).join("\n\n")
+          : "";
+
+        const rawParagraphs = Array.isArray(text.paragraphs)
+          ? text.paragraphs.map((p, i) => ({
+              id: p.id || uid("p"),
+              index: i,
+              text: typeof p === "string" ? p : (p.text || ""),
+              chatHistory: Array.isArray(p.chatHistory) ? p.chatHistory : []
+            }))
+          : smartSplitParagraphs(text.content || "").map((p, i) => ({
+              id: uid("p"),
+              index: i,
+              text: p,
+              chatHistory: []
+            }));
+
+        return {
+          ...text,
+          title: text.title || "未命名文本",
+          content: text.content || "",
+          paragraphs: rawParagraphs,
+          aiComments: Array.isArray(text.aiComments) ? text.aiComments : [],
+          aiReadingNote,
+          aiMemo: text.aiMemo || aiReadingNote || "",
+          aiMemoCards: Array.isArray(text.aiMemoCards) ? text.aiMemoCards : [],
+          myMemo: text.myMemo || oldMyNotes || "",
+          createdAt: text.createdAt || new Date().toISOString(),
+          updatedAt: text.updatedAt || text.createdAt || new Date().toISOString()
+        };
+      });
+
+      return next;
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function uid(prefix) {
+      return prefix + "_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatDate(iso) {
+      if (!iso) return "";
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleString("zh-CN");
+    }
+
+    function showToast(text) {
+      const el = document.getElementById("toast");
+      el.textContent = text;
+      el.style.display = "block";
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => {
+        el.style.display = "none";
+      }, 1800);
+    }
+
+    function sentenceLike(line) {
+      return /[。！？!?…」”）)]$/.test(line.trim());
+    }
+
+    function smartSplitParagraphs(text) {
+      const clean = String(text || "")
+        .replace(/\r/g, "")
+        .replace(/[\t\u00a0]+/g, " ")
+        .trim();
+
+      if (!clean) return [];
+
+      const blankBlocks = clean
+        .split(/\n\s*\n+/)
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      if (blankBlocks.length >= 2) {
+        return blankBlocks.flatMap(block => packShortLines(block));
+      }
+
+      return packShortLines(clean);
+    }
+
+    function packShortLines(block) {
+      const lines = block
+        .split(/\n+/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      if (!lines.length) return [];
+
+      // 如果原文几乎没有换行，就按中文句读智能合并成阅读段。
+      if (lines.length === 1) {
+        return packSentences(lines[0]);
+      }
+
+      const result = [];
+      let buf = "";
+
+      for (const line of lines) {
+        const next = buf ? buf + "\n" + line : line;
+        const plainLen = next.replace(/\s/g, "").length;
+
+        if (!buf) {
+          buf = line;
+          continue;
+        }
+
+        const shouldClose = plainLen >= 220 || (plainLen >= 120 && sentenceLike(line));
+
+        if (shouldClose) {
+          result.push(next);
+          buf = "";
+        } else {
+          buf = next;
+        }
+      }
+
+      if (buf.trim()) result.push(buf.trim());
+      return result;
+    }
+
+    function packSentences(text) {
+      const sentences = text
+        .replace(/([。！？!?…]+[」”』）)]?)/g, "$1\n")
+        .split(/\n+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      if (sentences.length <= 1) return [text];
+
+      const result = [];
+      let buf = "";
+
+      for (const s of sentences) {
+        const next = buf ? buf + s : s;
+        const len = next.length;
+        if (len >= 180 || (len >= 110 && /[。！？!?…」”』）)]$/.test(s))) {
+          result.push(next);
+          buf = "";
+        } else {
+          buf = next;
+        }
+      }
+
+      if (buf) result.push(buf);
+      return result;
+    }
+
+    function getText(id) {
+      return state.texts.find(t => t.id === id);
+    }
+
+    function collectAiMemos(excludeTextId) {
+      return state.texts
+        .filter(t => t.id !== excludeTextId)
+        .map(t => {
+          const cards = (t.aiMemoCards || []).map(card => `- ${card.title || "阅读卡片"}：${card.content || ""}`).join("\n");
+          const memo = [t.aiMemo || "", cards].filter(Boolean).join("\n").trim();
+          return memo ? `《${t.title}》\n${memo}` : "";
+        })
+        .filter(Boolean)
+        .slice(-5);
+    }
+
+    function collectMyMemos(excludeTextId) {
+      return state.texts
+        .filter(t => t.id !== excludeTextId)
+        .map(t => {
+          const memo = (t.myMemo || "").trim();
+          return memo ? `《${t.title}》\n${memo}` : "";
+        })
+        .filter(Boolean)
+        .slice(-5);
+    }
+
+    function commentsFor(text, paragraphIndex) {
+      return (text.aiComments || []).filter(c => Number(c.paragraphIndex) === Number(paragraphIndex));
+    }
+
+    function renderHome() {
+      currentTextId = null;
+      document.body.classList.remove("panel-open");
+
+      const main = document.getElementById("main");
+
+      if (!state.texts.length) {
+        main.innerHTML = `
+          <div class="empty">
+            <div>
+              <h1>这里暂时是空白</h1>
+              <p>点右上角「＋」上传 UTF-8 TXT。<br>上传后会生成正文阅读页、AI 小批注和可编辑阅读备忘录。</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      main.innerHTML = `
+        <div class="home-list">
+          ${state.texts.map(text => `
+            <article class="book-card" onclick="renderReader('${text.id}')">
+              <h2>${escapeHtml(text.title)}</h2>
+              <div class="meta">
+                ${text.content.length} 字 / ${text.paragraphs.length} 个阅读段 / AI 批注 ${(text.aiComments || []).length} 条<br>
+                最近阅读：${formatDate(text.updatedAt || text.createdAt)}
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderReader(textId) {
+      const text = getText(textId);
+      if (!text) return renderHome();
+
+      currentTextId = textId;
+      text.updatedAt = new Date().toISOString();
+      saveState();
+
+      const main = document.getElementById("main");
+
+      main.innerHTML = `
+        <section class="reader-head">
+          <div class="reader-tools">
+            <button class="secondary" onclick="renderHome(); closePanel();">← 返回书架</button>
+            <button class="secondary" onclick="deleteText('${text.id}')">删除</button>
+          </div>
+
+          <h1>${escapeHtml(text.title)}</h1>
+          <div class="summary">
+            ${text.content.length} 字 / ${text.paragraphs.length} 个阅读段
+            ${text.aiMemo ? `<br>AI 备忘录：${escapeHtml(text.aiMemo.slice(0, 90))}${text.aiMemo.length > 90 ? "…" : ""}` : ""}
+          </div>
+        </section>
+
+        <article class="novel">
+          ${text.paragraphs.map((p, i) => `
+            <section class="para-wrap">
+              <p class="novel-p">
+                ${escapeHtml(p.text)}
+                <button class="tri" onclick="openChatPanel('${text.id}', ${i})" title="聊聊这一段" aria-label="聊聊这一段">▸</button>
+              </p>
+
+              ${commentsFor(text, i).map(c => `
+                <div class="ai-note-inline">
+                  <span class="tag">${escapeHtml(c.tag || "AI")}</span>
+                  ${escapeHtml(c.comment || "")}
+                </div>
+              `).join("")}
+            </section>
+          `).join("")}
+        </article>
+      `;
+    }
+
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      event.target.value = "";
+      if (!file) return;
+
+      if (!state.settings.workerUrl) {
+        openSettingsPanel();
+        showToast("请先填写 Worker URL");
+        return;
+      }
+
+      const content = await file.text();
+      const paragraphs = smartSplitParagraphs(content);
+
+      if (!paragraphs.length) {
+        alert("没有读到有效段落。请确认 TXT 是 UTF-8 编码。若原文没有空行，本版也会尝试自动智能分段。");
+        return;
+      }
+
+      const text = {
+        id: uid("text"),
+        title: file.name.replace(/\.txt$/i, ""),
+        content,
+        paragraphs: paragraphs.map((p, i) => ({
+          id: uid("p"),
+          index: i,
+          text: p,
+          chatHistory: []
+        })),
+        aiComments: [],
+        aiReadingNote: "",
+        aiMemo: "AI 正在阅读中……",
+        aiMemoCards: [],
+        myMemo: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      state.texts.unshift(text);
+      saveState();
+      renderReader(text.id);
+
+      try {
+        document.body.classList.add("loading");
+        showToast("AI 正在阅读文本……");
+
+        const result = await callWorker("/annotate", {
+          title: text.title,
+          paragraphs: text.paragraphs.map(p => p.text),
+          memoryMode: state.settings.memoryMode,
+          aiNotes: collectAiMemos(text.id),
+          myNotes: collectMyMemos(text.id)
+        });
+
+        const parsed = result.parsed;
+
+        if (parsed) {
+          const overall = parsed.overallNote || "AI 已阅读，但没有留下整篇备忘录。";
+          text.aiReadingNote = overall;
+          text.aiMemo = makeInitialAiMemo(text.title, overall, text.content.length, text.paragraphs.length);
+          text.aiComments = Array.isArray(parsed.comments) ? parsed.comments : [];
+        } else {
+          const raw = result.raw || "AI 返回内容无法解析。";
+          text.aiReadingNote = raw;
+          text.aiMemo = makeInitialAiMemo(text.title, raw, text.content.length, text.paragraphs.length);
+          text.aiComments = [];
+        }
+
+        saveState();
+        renderReader(text.id);
+      } catch (err) {
+        text.aiMemo = "AI 阅读失败：" + err.message;
+        saveState();
+        renderReader(text.id);
+        alert("AI 阅读失败：" + err.message);
+      } finally {
+        document.body.classList.remove("loading");
+      }
+    }
+
+    function makeInitialAiMemo(title, note, charCount, paragraphCount) {
+      return [
+        `时间：${formatDate(new Date().toISOString())}`,
+        `文本：${title}`,
+        `规模：约 ${charCount} 字，${paragraphCount} 个阅读段`,
+        "",
+        "概览：",
+        note || "暂无"
+      ].join("\n");
+    }
+
+    async function callWorker(path, body) {
+      const base = state.settings.workerUrl.replace(/\/$/, "");
+      const response = await fetch(base + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const text = await response.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || "Worker 返回的不是 JSON");
+      }
+
+      if (!response.ok || data.error) {
+        throw new Error(data.message || "Worker 请求失败");
+      }
+
+      return data;
+    }
+
+    function openPanel(title, bodyHtml, footerHtml = "") {
+      document.getElementById("panelTitle").textContent = title;
+      document.getElementById("panelBody").innerHTML = bodyHtml;
+
+      const footer = document.getElementById("panelFooter");
+      if (footerHtml) {
+        footer.innerHTML = footerHtml;
+        footer.style.display = "flex";
+      } else {
+        footer.innerHTML = "";
+        footer.style.display = "none";
+      }
+
+      document.getElementById("panel").classList.add("open");
+      document.getElementById("panelMask").classList.add("open");
+      document.body.classList.add("panel-open");
+    }
+
+    function closePanel() {
+      document.getElementById("panel").classList.remove("open");
+      document.getElementById("panelMask").classList.remove("open");
+      document.getElementById("panelFooter").style.display = "none";
+      document.body.classList.remove("panel-open");
+      currentChat = null;
+      stopThinkingTimer();
+    }
+
+    function openSettingsPanel() {
+      openPanel("API 设置", `
+        <label>Worker URL</label>
+        <input id="workerUrlInput" value="${escapeHtml(state.settings.workerUrl || "")}" placeholder="https://xxx.workers.dev" />
+
+        <label>记忆权限</label>
+        <select id="memoryModeInput">
+          <option value="none" ${state.settings.memoryMode === "none" ? "selected" : ""}>不读取过往笔记</option>
+          <option value="ai" ${state.settings.memoryMode === "ai" ? "selected" : ""}>只读取过往 AI 备忘录</option>
+          <option value="all" ${state.settings.memoryMode === "all" ? "selected" : ""}>读取 AI 备忘录 + 我的备忘录</option>
+        </select>
+
+        <p class="small">API Key 不在网页里填写。它仍然放在 Cloudflare Worker 的环境变量里。</p>
+
+        <div class="memo-actions">
+          <button onclick="saveSettings()">保存设置</button>
+        </div>
+      `);
+    }
+
+    function saveSettings() {
+      state.settings.workerUrl = document.getElementById("workerUrlInput").value.trim();
+      state.settings.memoryMode = document.getElementById("memoryModeInput").value;
+      saveState();
+      showToast("设置已保存");
+      closePanel();
+    }
+
+    function openNotesPanel() {
+      if (!currentTextId) {
+        openAllNotesPanel();
+        return;
+      }
+
+      const text = getText(currentTextId);
+      if (!text) return openAllNotesPanel();
+
+      openPanel("阅读笔记", `
+        <div class="small" style="margin-bottom:12px;">当前文本：${escapeHtml(text.title)}</div>
+
+        <div class="memo-box">
+          <h3>我的阅读备忘录</h3>
+          <textarea id="myMemoInput" placeholder="这里写你自己的阅读笔记。AI 之后可以在你允许时读取它。">${escapeHtml(text.myMemo || "")}</textarea>
+          <div class="memo-actions">
+            <button class="mini" onclick="appendMemoLine('my')">＋ 追加一条</button>
+            <button class="mini" onclick="clearMemo('my')">清空</button>
+          </div>
+        </div>
+
+        <div class="memo-box">
+          <h3>AI 阅读备忘录</h3>
+          <textarea id="aiMemoInput" placeholder="这里是 AI 对这篇文章的长期备忘录，可以编辑。">${escapeHtml(text.aiMemo || "")}</textarea>
+          <div class="memo-actions">
+            <button class="mini" onclick="appendMemoLine('ai')">＋ 追加一条</button>
+            <button class="mini" onclick="polishAiMemo()">AI 整理</button>
+            <button class="mini" onclick="clearMemo('ai')">清空</button>
+          </div>
+        </div>
+
+        <div class="memo-box">
+          <h3>AI 过程卡片</h3>
+          ${(text.aiMemoCards || []).length ? text.aiMemoCards.map(card => `
+            <div class="note-card">
+              <h3>${escapeHtml(card.title || "阅读卡片")}</h3>
+              <div class="time">${formatDate(card.createdAt)}</div>
+              <div style="white-space:pre-wrap; line-height:1.65;">${escapeHtml(card.content || "")}</div>
+            </div>
+          `).join("") : `<p class="small">聊天过程中，AI 可以把它觉得值得留下的判断、摘抄或感受自动沉淀成卡片。</p>`}
+        </div>
+
+        <div class="memo-actions">
+          <button onclick="saveMemos()">保存两份备忘录</button>
+          <button class="secondary" onclick="openAllNotesPanel()">查看全部文章备忘录</button>
+        </div>
+      `);
+    }
+
+    function openAllNotesPanel() {
+      openPanel("全部阅读笔记", `
+        ${state.texts.length ? state.texts.map(text => `
+          <div class="memo-box">
+            <h3>${escapeHtml(text.title)}</h3>
+            <div class="small">我的备忘录</div>
+            <div style="white-space:pre-wrap; line-height:1.65; margin-bottom:10px;">${escapeHtml((text.myMemo || "").slice(0, 260) || "暂无")}</div>
+            <div class="small">AI 备忘录</div>
+            <div style="white-space:pre-wrap; line-height:1.65;">${escapeHtml((text.aiMemo || "").slice(0, 260) || "暂无")}</div>
+            ${(text.aiMemoCards || []).length ? `<div class="small" style="margin-top:8px;">AI 过程卡片：${text.aiMemoCards.length} 张</div>` : ""}
+            <div class="memo-actions">
+              <button class="mini" onclick="renderReader('${text.id}'); closePanel();">打开这篇</button>
+            </div>
+          </div>
+        `).join("") : `<p class="small">暂无阅读笔记。</p>`}
+      `);
+    }
+
+    function saveMemos() {
+      const text = getText(currentTextId);
+      if (!text) return;
+
+      text.myMemo = document.getElementById("myMemoInput").value.trim();
+      text.aiMemo = document.getElementById("aiMemoInput").value.trim();
+      text.updatedAt = new Date().toISOString();
+
+      saveState();
+      showToast("备忘录已保存");
+      renderReader(text.id);
+      openNotesPanel();
+    }
+
+    function appendMemoLine(kind) {
+      const id = kind === "my" ? "myMemoInput" : "aiMemoInput";
+      const box = document.getElementById(id);
+      if (!box) return;
+
+      const line = prompt(kind === "my" ? "追加到我的阅读备忘录：" : "追加到 AI 阅读备忘录：", "");
+      if (!line || !line.trim()) return;
+
+      const prefix = box.value.trim() ? "\n\n" : "";
+      box.value = box.value + prefix + "＋ " + line.trim();
+    }
+
+    function clearMemo(kind) {
+      const id = kind === "my" ? "myMemoInput" : "aiMemoInput";
+      const box = document.getElementById(id);
+      if (!box) return;
+
+      if (!confirm("确定清空这一块备忘录？")) return;
+      box.value = "";
+    }
+
+    async function polishAiMemo() {
+      const text = getText(currentTextId);
+      if (!text) return;
+
+      const aiBox = document.getElementById("aiMemoInput");
+      const myBox = document.getElementById("myMemoInput");
+
+      const material = [
+        "当前 AI 备忘录：",
+        aiBox.value || "暂无",
+        "",
+        "我的阅读备忘录：",
+        myBox.value || "暂无",
+        "",
+        "AI 段落批注：",
+        (text.aiComments || []).map(c => `第${Number(c.paragraphIndex) + 1}段：${c.tag || ""} ${c.comment || ""}`).join("\n") || "暂无",
+        "",
+        "AI 过程卡片：",
+        (text.aiMemoCards || []).map(card => `${card.title || "阅读卡片"}：${card.content || ""}`).join("\n") || "暂无"
+      ].join("\n");
+
+      try {
+        showToast("AI 正在整理备忘录……");
+
+        const result = await callWorker("/chat", {
+          currentParagraph: material,
+          previousParagraph: "",
+          nextParagraph: "",
+          userMessage: "请把以上内容整理成一份适合作为本篇文章长期记忆的 AI 阅读备忘录。要求：不要像作文，不要复述原文，保留具体判断和阅读感受，控制在 220 字以内。",
+          chatHistory: [],
+          textAiNote: aiBox.value,
+          memoryMode: "none",
+          aiNotes: [],
+          myNotes: []
+        });
+
+        aiBox.value = result.reply || aiBox.value;
+        showToast("AI 备忘录已整理");
+      } catch (err) {
+        alert("整理失败：" + err.message);
+      }
+    }
+
+    function openChatPanel(textId, paragraphIndex) {
+      currentChat = { textId, paragraphIndex, isThinking: false };
+      renderChatPanel();
+    }
+
+    function renderChatPanel() {
+      if (!currentChat) return;
+
+      const text = getText(currentChat.textId);
+      const i = currentChat.paragraphIndex;
+      const p = text.paragraphs[i];
+      const history = p.chatHistory || [];
+
+      openPanel(
+        `第 ${i + 1} 段`,
+        `
+          <div class="current-para">${escapeHtml(p.text)}</div>
+
+          ${history.length ? history.map((m, idx) => `
+            <div class="chat-msg ${m.role === "user" ? "chat-user" : "chat-ai"}">
+              ${escapeHtml(m.content)}
+              <div class="chat-tools">
+                ${m.role === "assistant"
+                  ? `<button class="mini" onclick="appendChatToMemo(${idx}, 'ai')">摘到 AI 备忘录</button>`
+                  : `<button class="mini" onclick="appendChatToMemo(${idx}, 'my')">摘到我的备忘录</button>`
+                }
+              </div>
+            </div>
+          `).join("") : `
+            <p class="small">这里可以只聊当前这一段。系统只会发送当前段落、相邻段落、当前文本备忘录，以及你允许的少量过往备忘录。</p>
+          `}
+
+          ${currentChat.isThinking ? `
+            <div class="chat-msg thinking">
+              <span class="dot">AI 正在思考</span>
+              <span id="thinkingSeconds">0</span> 秒
+            </div>
+          ` : ""}
+        `,
+        `
+          <textarea id="chatInput" placeholder="问问这一段……" ${currentChat.isThinking ? "disabled" : ""}></textarea>
+          <button id="sendBtn" onclick="sendChat()" ${currentChat.isThinking ? "disabled" : ""}>发送</button>
+        `
+      );
+
+      const body = document.getElementById("panelBody");
+      body.scrollTop = body.scrollHeight;
+      if (currentChat.isThinking) startThinkingTimer();
+    }
+
+    function startThinkingTimer() {
+      stopThinkingTimer();
+      thinkingStartedAt = Date.now();
+      thinkingTimer = setInterval(() => {
+        const el = document.getElementById("thinkingSeconds");
+        if (el && thinkingStartedAt) {
+          el.textContent = String(Math.floor((Date.now() - thinkingStartedAt) / 1000));
+        }
+      }, 300);
+    }
+
+    function stopThinkingTimer() {
+      clearInterval(thinkingTimer);
+      thinkingTimer = null;
+      thinkingStartedAt = null;
+    }
+
+    async function sendChat() {
+      if (!currentChat || currentChat.isThinking) return;
+
+      const input = document.getElementById("chatInput");
+      const userMessage = input.value.trim();
+      if (!userMessage) return;
+
+      const text = getText(currentChat.textId);
+      const i = currentChat.paragraphIndex;
+      const p = text.paragraphs[i];
+
+      p.chatHistory = p.chatHistory || [];
+      p.chatHistory.push({ role: "user", content: userMessage });
+
+      currentChat.isThinking = true;
+      saveState();
+      renderChatPanel();
+
+      try {
+        const result = await callWorker("/chat", {
+          currentParagraph: text.paragraphs[i]?.text || "",
+          previousParagraph: text.paragraphs[i - 1]?.text || "",
+          nextParagraph: text.paragraphs[i + 1]?.text || "",
+          userMessage,
+          chatHistory: p.chatHistory.slice(0, -1),
+          textAiNote: [text.aiMemo || text.aiReadingNote || "", ...(text.aiMemoCards || []).map(card => `${card.title || "阅读卡片"}：${card.content || ""}`)].filter(Boolean).join("\n\n"),
+          memoryMode: state.settings.memoryMode,
+          aiNotes: collectAiMemos(text.id),
+          myNotes: collectMyMemos(text.id)
+        });
+
+        p.chatHistory.push({
+          role: "assistant",
+          content: result.reply || "AI 没有返回内容。"
+        });
+
+        maybeAddAiMemoCard(text, i, userMessage, result.reply || "");
+
+        text.updatedAt = new Date().toISOString();
+        saveState();
+      } catch (err) {
+        p.chatHistory.push({
+          role: "assistant",
+          content: "聊天失败：" + err.message
+        });
+        saveState();
+      } finally {
+        currentChat.isThinking = false;
+        stopThinkingTimer();
+        renderChatPanel();
+      }
+    }
+
+    function maybeAddAiMemoCard(text, paragraphIndex, userMessage, aiReply) {
+      const shouldKeep = /摘|记|笔记|备忘|喜欢|好|妙|重要|伏笔|人物|情绪|结构|语言|原文|保留|卡片/.test(userMessage + aiReply);
+      if (!shouldKeep) return;
+
+      const source = text.paragraphs[paragraphIndex]?.text || "";
+      const excerpt = source.length > 120 ? source.slice(0, 120) + "…" : source;
+      const content = [
+        aiReply.length > 220 ? aiReply.slice(0, 220) + "…" : aiReply,
+        excerpt ? `\n原文片段：${excerpt}` : ""
+      ].join("\n").trim();
+
+      text.aiMemoCards = text.aiMemoCards || [];
+      text.aiMemoCards.push({
+        id: uid("card"),
+        title: `第 ${paragraphIndex + 1} 段的阅读发现`,
+        content,
+        paragraphIndex,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    function appendChatToMemo(messageIndex, kind) {
+      if (!currentChat) return;
+
+      const text = getText(currentChat.textId);
+      const p = text.paragraphs[currentChat.paragraphIndex];
+      const msg = p.chatHistory[messageIndex];
+
+      if (!msg) return;
+
+      const line = `【第 ${currentChat.paragraphIndex + 1} 段】${msg.content}`;
+
+      if (kind === "ai") {
+        text.aiMemo = (text.aiMemo || "").trim()
+          ? text.aiMemo.trim() + "\n\n" + line
+          : line;
+      } else {
+        text.myMemo = (text.myMemo || "").trim()
+          ? text.myMemo.trim() + "\n\n" + line
+          : line;
+      }
+
+      saveState();
+      showToast(kind === "ai" ? "已摘到 AI 备忘录" : "已摘到我的备忘录");
+    }
+
+    function deleteText(textId) {
+      const text = getText(textId);
+      if (!text) return;
+
+      if (!confirm(`确定删除《${text.title}》？原文、批注、聊天、备忘录都会删除。`)) return;
+
+      state.texts = state.texts.filter(t => t.id !== textId);
+      saveState();
+      renderHome();
+      closePanel();
+    }
+
+    renderHome();
+  </script>
 </body>
 </html>
