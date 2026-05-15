@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI 阅读器</title>
-
   <style>
     :root {
       --paper: #f7f1e8;
@@ -17,17 +16,19 @@
       --ai: #8a5f2d;
       --ai-bg: #f3e5cf;
       --dark: #2d241c;
-      --panel-width: 470px;
+      --green: #4a8c5c;
+      --green-bg: rgba(74,140,92,0.12);
+      --green-border: rgba(74,140,92,0.3);
     }
 
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      margin: 0;
       background: var(--paper);
       color: var(--ink);
       font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif;
-      overflow-x: hidden;
+      overflow: hidden;
+      height: 100vh;
     }
 
     button, input, textarea, select { font: inherit; }
@@ -37,11 +38,12 @@
       background: var(--dark);
       color: white;
       border-radius: 999px;
-      padding: 8px 14px;
+      padding: 7px 14px;
       cursor: pointer;
+      font-size: 13px;
+      transition: opacity .15s;
     }
-
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button:active { opacity: .7; }
 
     button.secondary {
       background: rgba(255,255,255,0.55);
@@ -52,26 +54,21 @@
     button.ghost {
       background: transparent;
       color: var(--accent);
-      border: 1px solid transparent;
       padding: 4px 8px;
     }
 
     button.mini {
       font-size: 12px;
-      padding: 4px 9px;
-      background: rgba(111, 85, 58, 0.12);
+      padding: 3px 9px;
+      background: rgba(111,85,58,0.1);
       color: var(--accent);
-      border: 1px solid rgba(111, 85, 58, 0.18);
+      border: 1px solid rgba(111,85,58,0.15);
     }
 
     button.icon {
-      width: 38px;
-      height: 38px;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
+      width: 36px; height: 36px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 17px;
     }
 
     input, textarea, select {
@@ -79,148 +76,140 @@
       border: 1px solid var(--line);
       background: #fffaf3;
       color: var(--ink);
-      border-radius: 14px;
-      padding: 10px 12px;
+      border-radius: 12px;
+      padding: 9px 11px;
       outline: none;
+      font-size: 14px;
     }
 
-    textarea {
-      resize: vertical;
-      min-height: 150px;
-      line-height: 1.62;
-    }
+    textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+    label { display: block; margin: 14px 0 5px; font-size: 12px; color: var(--muted); }
 
-    label {
-      display: block;
-      margin: 16px 0 6px;
-      font-size: 13px;
-      color: var(--muted);
-    }
-
+    /* ─── topbar ─── */
     .topbar {
-      height: 58px;
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      background: rgba(247, 241, 232, 0.9);
+      height: 50px;
+      position: relative; z-index: 20;
+      background: rgba(247,241,232,0.92);
       backdrop-filter: blur(14px);
-      border-bottom: 1px solid rgba(223, 208, 190, 0.75);
+      border-bottom: 1px solid rgba(223,208,190,0.7);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px;
+      flex-shrink: 0;
+    }
+    .topbar-group { display: flex; align-items: center; gap: 8px; }
+    .brand { font-size: 14px; color: var(--muted); letter-spacing: .06em; }
+
+    /* ─── layout ─── */
+    .app-layout {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 16px;
+      height: calc(100vh - 50px);
+      overflow: hidden;
     }
 
-    .left-actions, .right-actions {
+    .reader-pane {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 18px 80px;
+      transition: padding-right .25s;
+    }
+
+    .reader-pane.with-sidebar {
+      /* nothing special, flex handles it */
+    }
+
+    .sidebar {
+      width: 0;
+      overflow: hidden;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      transition: width .25s ease;
+      flex-shrink: 0;
     }
 
-    .brand {
-      font-size: 15px;
-      color: var(--muted);
-      letter-spacing: 0.08em;
+    .sidebar.open {
+      width: min(420px, 45vw);
     }
 
-    main {
-      width: min(860px, 100%);
+    .sidebar-header {
+      min-height: 48px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; flex-shrink: 0;
+    }
+    .sidebar-header h2 { font-size: 15px; margin: 0; white-space: nowrap; }
+
+    .sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--line);
+      padding: 10px 12px;
+      display: none;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .sidebar-footer.show { display: flex; }
+    .sidebar-footer textarea { min-height: 42px; max-height: 120px; flex: 1; }
+
+    /* ─── home ─── */
+    .content-area {
+      width: min(780px, 100%);
       margin: 0 auto;
-      padding: 24px 18px 90px;
-      transition: width 0.22s ease, margin 0.22s ease, padding 0.22s ease;
-    }
-
-    body.panel-open main {
-      width: calc(100vw - var(--panel-width));
-      margin-left: 0;
-      margin-right: var(--panel-width);
-      padding-left: 24px;
-      padding-right: 24px;
-    }
-
-    body.panel-open .reader-head,
-    body.panel-open .novel {
-      width: min(680px, 100%);
     }
 
     .empty {
-      min-height: 58vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      color: var(--muted);
-      line-height: 1.9;
+      min-height: 50vh;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; color: var(--muted); line-height: 1.9;
     }
+    .empty h1 { font-size: 22px; margin-bottom: 8px; }
 
-    .home-list {
-      display: grid;
-      gap: 14px;
-      width: min(620px, 100%);
-      margin: 24px auto 0;
-    }
+    .home-list { display: grid; gap: 12px; max-width: 600px; margin: 20px auto 0; }
 
     .book-card {
-      background: rgba(255, 250, 243, 0.72);
+      background: rgba(255,250,243,0.72);
       border: 1px solid var(--line);
-      border-radius: 22px;
-      padding: 18px 20px;
+      border-radius: 18px;
+      padding: 16px 18px;
       cursor: pointer;
-      box-shadow: 0 10px 26px rgba(74, 55, 35, 0.04);
+      box-shadow: 0 6px 20px rgba(74,55,35,0.04);
+      transition: box-shadow .15s;
     }
+    .book-card:hover { box-shadow: 0 8px 28px rgba(74,55,35,0.08); }
+    .book-card h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+    .meta { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
-    .book-card h2 {
-      margin: 0 0 9px;
-      font-size: 21px;
-      font-weight: 650;
-    }
-
-    .meta {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.7;
-    }
-
+    /* ─── reader ─── */
     .reader-head {
-      width: min(720px, 100%);
-      margin: 0 auto 18px;
-      padding: 8px 0 16px;
-      border-bottom: 1px solid rgba(223, 208, 190, 0.65);
+      max-width: 680px;
+      margin: 0 auto 16px;
+      padding: 8px 0 14px;
+      border-bottom: 1px solid rgba(223,208,190,0.6);
     }
-
     .reader-tools {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 14px;
     }
-
-    .reader-head h1 {
-      margin: 0 0 8px;
-      font-size: 27px;
-      font-weight: 650;
-      letter-spacing: 0.03em;
-    }
-
-    .reader-head .summary {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.65;
-    }
+    .reader-head h1 { margin: 0 0 6px; font-size: 23px; font-weight: 650; letter-spacing: .02em; }
+    .reader-head .summary { color: var(--muted); font-size: 13px; line-height: 1.6; }
 
     .novel {
-      width: min(720px, 100%);
+      max-width: 680px;
       margin: 0 auto;
-      font-family: "Songti SC", "STSong", "Noto Serif SC", "PingFang SC", serif;
-      font-size: 18px;
-      line-height: 1.46;
-      letter-spacing: 0.006em;
+      font-family: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", "PingFang SC", serif;
+      font-size: 17px;
+      line-height: 1.75;
+      letter-spacing: .015em;
     }
 
     .para-wrap {
-      margin: 0 0 0.42em;
-      padding: 0;
+      margin: 0 0 0.3em;
     }
 
     .novel-p {
@@ -231,734 +220,768 @@
 
     .tri {
       display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-left: 0.42em;
-      width: 1.42em;
-      height: 1.42em;
+      align-items: center; justify-content: center;
+      margin-left: 0.3em;
+      width: 1.3em; height: 1.3em;
       border-radius: 50%;
-      border: 1px solid rgba(111, 85, 58, 0.25);
-      background: rgba(111, 85, 58, 0.08);
+      border: 1px solid rgba(111,85,58,0.22);
+      background: rgba(111,85,58,0.07);
       color: var(--accent);
-      font-size: 0.68em;
+      font-size: 0.65em;
       vertical-align: middle;
       padding: 0;
+      cursor: pointer;
       transform: translateY(-1px);
+      transition: all .15s;
     }
+    .tri:hover { background: rgba(111,85,58,0.15); }
 
-    .tri.has-comment {
-      border-color: rgba(78, 128, 84, 0.48);
-      background: rgba(78, 128, 84, 0.14);
-      color: #4e8054;
-      font-weight: 700;
+    .tri.has-note {
+      border-color: var(--green-border);
+      background: var(--green-bg);
+      color: var(--green);
     }
+    .tri.has-note:hover { background: rgba(74,140,92,0.2); }
 
+    /* inline note preview */
     .ai-note-inline {
-      margin: 0.32em 0 0.85em 2.4em;
-      padding: 8px 12px;
-      max-width: 92%;
-      border-left: 3px solid rgba(138, 95, 45, 0.45);
-      background: rgba(243, 229, 207, 0.52);
-      color: var(--ai);
+      margin: 0.15em 0 0.35em 2.4em;
+      padding: 6px 10px;
+      max-width: 90%;
+      border-left: 3px solid rgba(74,140,92,0.45);
+      background: rgba(74,140,92,0.06);
+      color: #3d6b48;
       font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1.55;
       letter-spacing: 0;
-      border-radius: 10px;
+      border-radius: 8px;
+      cursor: pointer;
     }
-
-    .ai-note-inline .tag {
+    .ai-note-inline .ntag {
       display: inline-block;
-      margin-right: 6px;
-      font-size: 12px;
+      margin-right: 5px;
+      font-size: 11px;
       color: #fff;
-      background: rgba(138, 95, 45, 0.78);
+      background: rgba(74,140,92,0.72);
       border-radius: 999px;
-      padding: 1px 7px;
+      padding: 0 6px;
     }
 
-    .panel-mask {
-      position: fixed;
-      inset: 0;
-      z-index: 50;
-      background: rgba(45, 36, 28, 0.28);
-      display: none;
-    }
-
-    .panel-mask.open { display: none; }
-
-    .panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: var(--panel-width);
-      max-width: 94vw;
-      height: 100vh;
-      z-index: 60;
-      background: var(--panel);
-      border-left: 1px solid var(--line);
-      transform: translateX(105%);
-      transition: transform 0.22s ease;
-      display: flex;
-      flex-direction: column;
-      box-shadow: -16px 0 42px rgba(74, 55, 35, 0.12);
-    }
-
-    .panel.open { transform: translateX(0); }
-
-    .panel-header {
-      min-height: 60px;
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .panel-header h2 { margin: 0; font-size: 18px; }
-
-    .panel-body {
-      padding: 16px;
-      flex: 1;
-      overflow: auto;
-    }
-
-    .panel-footer {
-      border-top: 1px solid var(--line);
-      padding: 12px;
-      display: none;
-      gap: 8px;
-      align-items: flex-end;
-    }
-
-    .panel-footer textarea {
-      min-height: 48px;
-      max-height: 140px;
-      flex: 1;
-    }
-
-    .memo-box, .note-card {
-      background: rgba(255,255,255,0.48);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px;
-      margin-bottom: 14px;
-    }
-
-    .memo-box h3, .note-card h3 {
-      margin: 0 0 10px;
-      font-size: 17px;
-    }
-
+    /* ─── sidebar cards ─── */
     .note-card {
-      background: rgba(243, 229, 207, 0.42);
+      background: rgba(255,255,255,0.5);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
     }
-
-    .note-card .time {
-      color: var(--muted);
+    .note-card h3 { font-size: 14px; margin: 0 0 6px; }
+    .note-card .note-time { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .note-card .note-body { font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: var(--ink); }
+    .note-card .note-quote {
+      margin: 6px 0;
+      padding: 5px 8px;
+      border-left: 2px solid var(--line);
       font-size: 12px;
-      margin-bottom: 8px;
+      color: var(--muted);
+      line-height: 1.5;
+      white-space: pre-wrap;
     }
+    .note-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 
-    .memo-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin: 10px 0 0;
-    }
-
-    .current-para {
-      background: rgba(243, 229, 207, 0.55);
-      border: 1px solid rgba(223, 208, 190, 0.9);
-      border-radius: 18px;
-      padding: 13px;
-      margin-bottom: 14px;
-      font-size: 15px;
-      line-height: 1.65;
+    .current-para-box {
+      background: rgba(243,229,207,0.45);
+      border: 1px solid rgba(223,208,190,0.8);
+      border-radius: 14px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      line-height: 1.7;
       color: var(--ink);
       white-space: pre-wrap;
+      max-height: 150px;
+      overflow-y: auto;
     }
 
     .chat-msg {
-      margin-bottom: 12px;
-      padding: 12px 13px;
-      border-radius: 17px;
-      font-size: 15px;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 13px;
       line-height: 1.65;
       white-space: pre-wrap;
     }
-
     .chat-user {
-      margin-left: 34px;
+      margin-left: 30px;
       background: var(--dark);
       color: white;
     }
-
     .chat-ai {
-      margin-right: 34px;
-      background: rgba(111, 85, 58, 0.12);
+      margin-right: 30px;
+      background: rgba(111,85,58,0.1);
       color: var(--ink);
-      border: 1px solid rgba(111, 85, 58, 0.13);
+      border: 1px solid rgba(111,85,58,0.1);
     }
+    .chat-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
-    .thinking {
-      margin-right: 34px;
-      background: rgba(111, 85, 58, 0.08);
-      color: var(--muted);
-      border: 1px dashed rgba(111, 85, 58, 0.25);
-    }
-
-    .dot::after {
-      content: "";
-      animation: dots 1.1s infinite;
-    }
-
-    @keyframes dots {
-      0% { content: ""; }
-      33% { content: "."; }
-      66% { content: ".."; }
-      100% { content: "..."; }
-    }
-
-    .chat-tools {
+    /* ─── thinking indicator ─── */
+    .thinking-indicator {
       display: flex;
+      align-items: center;
       gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 8px;
-    }
-
-    .small {
-      color: var(--muted);
+      margin: 8px 0;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(111,85,58,0.08);
       font-size: 13px;
-      line-height: 1.7;
+      color: var(--muted);
     }
+    .thinking-dots span {
+      display: inline-block;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: dot-bounce .9s infinite;
+      margin-right: 3px;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: .15s; }
+    .thinking-dots span:nth-child(3) { animation-delay: .3s; }
+    @keyframes dot-bounce {
+      0%, 60%, 100% { opacity: .25; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-3px); }
+    }
+    .thinking-timer { font-variant-numeric: tabular-nums; }
+
+    /* ─── settings panel (modal) ─── */
+    .modal-mask {
+      position: fixed; inset: 0; z-index: 80;
+      background: rgba(45,36,28,0.3);
+      display: none; align-items: center; justify-content: center;
+    }
+    .modal-mask.open { display: flex; }
+    .modal-box {
+      background: var(--panel);
+      border-radius: 22px;
+      padding: 22px;
+      width: min(440px, 90vw);
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 16px 48px rgba(45,36,28,0.18);
+    }
+    .modal-box h2 { font-size: 17px; margin: 0 0 12px; }
+
+    .small { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
     .toast {
-      position: fixed;
-      left: 50%;
-      bottom: 24px;
+      position: fixed; left: 50%; bottom: 22px;
       transform: translateX(-50%);
-      background: rgba(45, 36, 28, 0.92);
-      color: white;
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-size: 14px;
-      z-index: 100;
-      display: none;
+      background: rgba(45,36,28,0.9);
+      color: white; padding: 8px 14px;
+      border-radius: 999px; font-size: 13px;
+      z-index: 100; display: none;
+      pointer-events: none;
     }
 
-    .loading { opacity: 0.66; pointer-events: none; }
-
-    @media (max-width: 920px) {
-      body.panel-open main {
-        width: 100%;
-        margin: 0 auto;
-        padding-left: 14px;
-        padding-right: 14px;
-      }
-
-      .panel-mask.open { display: block; }
-
-      .panel { width: min(470px, 94vw); }
+    /* loading overlay */
+    .loading-overlay {
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(247,241,232,0.6);
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
     }
+    .loading-overlay.show { display: flex; }
+    .loading-overlay .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay .load-text { font-size: 14px; color: var(--muted); }
+    .loading-overlay .load-timer { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
     @media (max-width: 700px) {
-      main { padding: 18px 14px 80px; }
       .brand { display: none; }
-      .novel { font-size: 17px; line-height: 1.46; }
-      .reader-head h1 { font-size: 24px; }
-      .ai-note-inline { margin-left: 1.4em; max-width: 96%; }
+      .sidebar.open { width: min(360px, 80vw); }
+      .novel { font-size: 16px; line-height: 1.72; }
+      .reader-head h1 { font-size: 20px; }
+      .ai-note-inline { margin-left: 1.2em; max-width: 95%; }
     }
   </style>
 </head>
 
 <body>
   <header class="topbar">
-    <div class="left-actions">
-      <button class="icon secondary" onclick="openNotesPanel()" title="阅读笔记" aria-label="阅读笔记">笔</button>
-      <button class="icon secondary" onclick="openSettingsPanel()" title="API 设置" aria-label="API 设置">设</button>
+    <div class="topbar-group">
+      <button class="icon secondary" onclick="openNotesView()" title="阅读笔记">📒</button>
+      <button class="icon secondary" onclick="openSettings()" title="API 设置">⚙</button>
     </div>
-
     <div class="brand">AI 阅读器</div>
-
-    <div class="right-actions">
-      <button class="icon" onclick="document.getElementById('fileInput').click()" title="上传 TXT" aria-label="上传 TXT">＋</button>
+    <div class="topbar-group">
+      <button class="icon" onclick="document.getElementById('fileInput').click()" title="上传 TXT">＋</button>
       <input id="fileInput" type="file" accept=".txt,text/plain" hidden onchange="handleFileUpload(event)" />
     </div>
   </header>
 
-  <main id="main"></main>
-
-  <div id="panelMask" class="panel-mask" onclick="closePanel()"></div>
-
-  <aside id="panel" class="panel">
-    <div class="panel-header">
-      <h2 id="panelTitle">面板</h2>
-      <button class="secondary" onclick="closePanel()">关闭</button>
+  <div class="app-layout">
+    <div id="readerPane" class="reader-pane">
+      <div id="main" class="content-area"></div>
     </div>
-    <div id="panelBody" class="panel-body"></div>
-    <div id="panelFooter" class="panel-footer"></div>
-  </aside>
+
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <h2 id="sidebarTitle">侧边栏</h2>
+        <button class="secondary" onclick="closeSidebar()" style="font-size:12px;">关闭</button>
+      </div>
+      <div id="sidebarBody" class="sidebar-body"></div>
+      <div id="sidebarFooter" class="sidebar-footer"></div>
+    </aside>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal-mask" onclick="if(event.target===this)closeSettings()">
+    <div class="modal-box" id="settingsBox"></div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <div class="load-text">AI 正在阅读全文…</div>
+    <div class="load-timer" id="loadTimer">0s</div>
+  </div>
 
   <div id="toast" class="toast"></div>
 
   <script>
+    /* ───────── 状态管理 ───────── */
     const STORAGE_KEY = "ai_reader_v3";
-
     let state = loadState();
     let currentTextId = null;
-    let currentChat = null;
+    let currentChat = null;  // { textId, paragraphIndex }
     let thinkingTimer = null;
-    let thinkingStartedAt = null;
 
     function defaultState() {
       return {
-        settings: {
-          workerUrl: "https://ai-reader-proxy.shun83258.workers.dev",
-          memoryMode: "none"
-        },
+        settings: { workerUrl: "", memoryMode: "none" },
         texts: []
       };
     }
 
     function loadState() {
       try {
-        const savedV3 = localStorage.getItem(STORAGE_KEY);
-        if (savedV3) return normalizeState(JSON.parse(savedV3));
-
-        const savedV2 = localStorage.getItem("ai_reader_v2");
-        if (savedV2) return normalizeState(JSON.parse(savedV2));
-
-        const old = localStorage.getItem("ai_reader_v1");
-        if (old) return normalizeState(JSON.parse(old));
-
+        for (const key of ["ai_reader_v3", "ai_reader_v2", "ai_reader_v1"]) {
+          const raw = localStorage.getItem(key);
+          if (raw) return normalizeState(JSON.parse(raw));
+        }
         return defaultState();
-      } catch {
-        return defaultState();
-      }
+      } catch { return defaultState(); }
     }
 
     function normalizeState(input) {
       const base = defaultState();
       const next = {
-        ...base,
-        ...input,
-        settings: {
-          ...base.settings,
-          ...(input.settings || {})
-        },
+        ...base, ...input,
+        settings: { ...base.settings, ...(input.settings || {}) },
         texts: Array.isArray(input.texts) ? input.texts : []
       };
-
-      next.texts = next.texts.map(text => {
-        const aiReadingNote = text.aiReadingNote || "";
-        const oldMyNotes = Array.isArray(text.myNotes)
-          ? text.myNotes.map(n => n.note || "").filter(Boolean).join("\n\n")
-          : "";
-
-        let rawParagraphs = Array.isArray(text.paragraphs)
-          ? text.paragraphs.map((p, i) => ({
+      next.texts = next.texts.map(t => ({
+        id: t.id || uid("t"),
+        title: t.title || "未命名",
+        content: t.content || "",
+        paragraphs: Array.isArray(t.paragraphs)
+          ? t.paragraphs.map((p, i) => ({
               id: p.id || uid("p"),
               index: i,
               text: typeof p === "string" ? p : (p.text || ""),
               chatHistory: Array.isArray(p.chatHistory) ? p.chatHistory : []
             }))
-          : smartSplitParagraphs(text.content || "").map((p, i) => ({
-              id: uid("p"),
-              index: i,
-              text: p,
-              chatHistory: []
-            }));
-
-        // 兼容之前被“一句话一段”切坏的旧文本：
-        // 只有在还没有聊天记录、没有 AI 批注时才自动重分，避免破坏已有索引。
-        if (shouldAutoResegment(text, rawParagraphs)) {
-          rawParagraphs = smartSplitParagraphs(text.content || "").map((p, i) => ({
-            id: uid("p"),
-            index: i,
-            text: p,
-            chatHistory: []
-          }));
-        }
-
-        return {
-          ...text,
-          title: text.title || "未命名文本",
-          content: text.content || "",
-          paragraphs: rawParagraphs,
-          aiComments: Array.isArray(text.aiComments) ? text.aiComments : [],
-          aiReadingNote,
-          aiMemo: text.aiMemo || aiReadingNote || "",
-          aiMemoCards: Array.isArray(text.aiMemoCards) ? text.aiMemoCards : [],
-          myMemo: text.myMemo || oldMyNotes || "",
-          createdAt: text.createdAt || new Date().toISOString(),
-          updatedAt: text.updatedAt || text.createdAt || new Date().toISOString()
-        };
-      });
-
+          : [],
+        aiComments: Array.isArray(t.aiComments) ? t.aiComments : [],
+        aiMemo: t.aiMemo || t.aiReadingNote || "",
+        aiNoteCards: Array.isArray(t.aiNoteCards) ? t.aiNoteCards : [],
+        myMemo: t.myMemo || "",
+        createdAt: t.createdAt || new Date().toISOString(),
+        updatedAt: t.updatedAt || t.createdAt || new Date().toISOString()
+      }));
       return next;
     }
 
-    function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
+    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function uid(p) { return p + "_" + Math.random().toString(36).slice(2, 8) + Date.now().toString(36); }
+    function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function fmtDate(iso) { if (!iso) return ""; try { return new Date(iso).toLocaleString("zh-CN"); } catch { return ""; } }
+    function fmtTime(iso) { if (!iso) return ""; try { return new Date(iso).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"}); } catch { return ""; } }
+    function getText(id) { return state.texts.find(t => t.id === id); }
 
-    function uid(prefix) {
-      return prefix + "_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    }
-
-    function escapeHtml(str) {
-      return String(str || "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function formatDate(iso) {
-      if (!iso) return "";
-      const date = new Date(iso);
-      if (Number.isNaN(date.getTime())) return "";
-      return date.toLocaleString("zh-CN");
-    }
-
-    function showToast(text) {
+    function showToast(msg) {
       const el = document.getElementById("toast");
-      el.textContent = text;
-      el.style.display = "block";
-      clearTimeout(showToast.timer);
-      showToast.timer = setTimeout(() => {
-        el.style.display = "none";
-      }, 1800);
+      el.textContent = msg; el.style.display = "block";
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => el.style.display = "none", 1800);
     }
 
-    function sentenceLike(line) {
-      const s = String(line || "").trim();
-      if (!s) return false;
-      const end = s[s.length - 1];
-      return "。！？!?…」”』）)]".includes(end);
-    }
+    /* ───────── 智能分段 ───────── */
+    function smartSplit(text) {
+      // 1. 统一换行
+      let s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-    function compactLen(str) {
-      let count = 0;
-      for (const ch of String(str || "")) {
-        if (ch.trim()) count += 1;
-      }
-      return count;
-    }
+      // 2. 先尝试按"连续空行"分段（这是最常见的TXT段落标记）
+      let paragraphs = s.split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
 
-    function splitSentences(text) {
-      const closers = "」”』）)]";
-      const stops = "。！？!?…";
-      const result = [];
-      let buf = "";
-
-      for (let i = 0; i < text.length; i += 1) {
-        const ch = text[i];
-        buf += ch;
-
-        if (stops.includes(ch)) {
-          while (i + 1 < text.length && closers.includes(text[i + 1])) {
-            i += 1;
-            buf += text[i];
-          }
-          if (buf.trim()) result.push(buf.trim());
-          buf = "";
-        }
+      // 3. 如果全文只分出了 1-2 段（说明作者没有用空行分段），改用单换行分
+      if (paragraphs.length <= 2 && s.length > 500) {
+        paragraphs = s.split(/\n/).map(p => p.trim()).filter(Boolean);
       }
 
-      if (buf.trim()) result.push(buf.trim());
-      return result;
-    }
+      // 4. 合并过短的段落（< 15字的独立行合并到下一段，除非它看起来像标题/对话）
+      const merged = [];
+      let buffer = "";
 
-    function splitByBlankLines(text) {
-      const NL = String.fromCharCode(10);
-      const blocks = [];
-      let buf = [];
+      for (let i = 0; i < paragraphs.length; i++) {
+        const line = paragraphs[i];
+        const isDialogue = /^["""「『（]/.test(line);
+        const isShort = line.length < 15;
+        const nextExists = i + 1 < paragraphs.length;
 
-      for (const rawLine of text.split(NL)) {
-        const line = rawLine.trim();
-        if (!line) {
-          if (buf.length) {
-            blocks.push(buf.join(NL).trim());
-            buf = [];
-          }
+        if (isShort && !isDialogue && nextExists && buffer.length === 0) {
+          // 可能是标题行或者很短的独立句，先看下一段
+          // 如果下一段也很短就合并
+          buffer = line;
+        } else if (buffer) {
+          merged.push(buffer + "\n" + line);
+          buffer = "";
         } else {
-          buf.push(line);
+          merged.push(line);
         }
       }
+      if (buffer) merged.push(buffer);
 
-      if (buf.length) blocks.push(buf.join(NL).trim());
-      return blocks.filter(Boolean);
-    }
-
-    function smartSplitParagraphs(text) {
-      const NL = String.fromCharCode(10);
-      const CR = String.fromCharCode(13);
-      const TAB = String.fromCharCode(9);
-      const NBSP = String.fromCharCode(160);
-
-      const clean = String(text || "")
-        .split(CR).join("")
-        .split(TAB).join(" ")
-        .split(NBSP).join(" ")
-        .trim();
-
-      if (!clean) return [];
-
-      // 1. 最优先：尊重作者自己用空行打出来的自然段。
-      // 只要你原文里段落之间有空行，这里就不会再把一句话拆成一个阅读段。
-      const blankBlocks = splitByBlankLines(clean);
-      if (blankBlocks.length >= 2) {
-        return blankBlocks.flatMap(block => normalizeAuthorParagraph(block));
-      }
-
-      // 2. 没有空行，但有单换行：这通常有两种情况：
-      // A. 你每段手动换行；B. 编辑器把一句一句/一行一行折开。
-      // 这里会把短行继续合并，避免每句话后面都有三角形。
-      const lines = clean.split(NL).map(line => line.trim()).filter(Boolean);
-      if (lines.length >= 2) {
-        const avgLen = lines.reduce((sum, line) => sum + compactLen(line), 0) / lines.length;
-        const veryShortRate = lines.filter(line => compactLen(line) <= 45).length / lines.length;
-        const sentenceEndRate = lines.filter(sentenceLike).length / lines.length;
-
-        // 短行多，或每行都像一句话：合并成 260-520 字左右的阅读段。
-        if (avgLen < 120 || veryShortRate > 0.35 || sentenceEndRate > 0.72) {
-          return packAuthorLines(lines);
+      // 5. 如果段落数太多（比如一句一段的情况），按每3-5段合并
+      if (merged.length > 80) {
+        const grouped = [];
+        const groupSize = Math.ceil(merged.length / Math.ceil(merged.length / 4));
+        for (let i = 0; i < merged.length; i += groupSize) {
+          grouped.push(merged.slice(i, i + groupSize).join("\n"));
         }
-
-        // 如果每行本来就比较长，更像作者自然段，就保留为段落；过长才温和拆开。
-        return lines.flatMap(line => normalizeAuthorParagraph(line));
+        return grouped;
       }
 
-      // 3. 完全没有换行：按 420-680 字左右合成阅读段。
-      // 注意：不是一句话一段，而是多句话组成一个可聊天的段落。
-      return packLongParagraph(clean, 420, 680);
+      return merged.length ? merged : [text.trim()];
     }
 
-    function normalizeAuthorParagraph(block) {
-      const NL = String.fromCharCode(10);
-      const one = String(block || "").split(NL).map(line => line.trim()).filter(Boolean).join(NL);
-      const len = compactLen(one);
-
-      // 20,000 字以内的短篇，作者自然段不乱拆；只有很长的段才拆。
-      if (len <= 1100) return [one];
-      return packLongParagraph(one.split(NL).join(""), 520, 760);
-    }
-
-    function packAuthorLines(lines) {
-      const NL = String.fromCharCode(10);
-      const result = [];
-      let buf = "";
-
-      for (const line of lines) {
-        const next = buf ? buf + NL + line : line;
-        const plainLen = compactLen(next);
-
-        // 这里故意把阈值调高，避免一句话/两句话就生成一个三角形。
-        const closeByLength = plainLen >= 520;
-        const closeByNaturalStop = plainLen >= 300 && sentenceLike(line);
-        const closeByDialogueTurn = plainLen >= 260 && /[。！？!?…」”』）)]$/.test(line) && /^「|^“|^『/.test(line.trim());
-
-        if (closeByLength || closeByNaturalStop || closeByDialogueTurn) {
-          result.push(next.trim());
-          buf = "";
-        } else {
-          buf = next;
-        }
-      }
-
-      if (buf.trim()) result.push(buf.trim());
-      return result;
-    }
-
-    function packLongParagraph(text, softLimit = 420, hardLimit = 680) {
-      const sentences = splitSentences(String(text || ""));
-      if (sentences.length <= 1) return [String(text || "")];
-
-      const result = [];
-      let buf = "";
-
-      for (const sentence of sentences) {
-        const next = buf ? buf + sentence : sentence;
-        const len = compactLen(next);
-
-        // 至少攒到 softLimit 附近才切，hardLimit 是兜底。
-        if (len >= hardLimit || (len >= softLimit && sentenceLike(sentence))) {
-          result.push(next.trim());
-          buf = "";
-        } else {
-          buf = next;
-        }
-      }
-
-      if (buf.trim()) result.push(buf.trim());
-      return result;
-    }
-
-    function shouldAutoResegment(text, paragraphs) {
-      if (!text || !text.content || !Array.isArray(paragraphs) || paragraphs.length < 8) return false;
-
-      const hasChat = paragraphs.some(p => Array.isArray(p.chatHistory) && p.chatHistory.length);
-      const hasComments = Array.isArray(text.aiComments) && text.aiComments.length;
-      if (hasChat || hasComments) return false;
-
-      const avgLen = paragraphs.reduce((sum, p) => sum + compactLen(p.text || ""), 0) / paragraphs.length;
-      const tooManyTinyParas = paragraphs.filter(p => compactLen(p.text || "") <= 70).length / paragraphs.length > 0.65;
-
-      return avgLen < 90 || tooManyTinyParas;
-    }
-
-    function getText(id) {
-      return state.texts.find(t => t.id === id);
-    }
-
-    function collectAiMemos(excludeTextId) {
-      return state.texts
-        .filter(t => t.id !== excludeTextId)
+    /* ───────── AI 记忆收集（不变） ───────── */
+    function collectAiMemos(excludeId) {
+      return state.texts.filter(t => t.id !== excludeId)
         .map(t => {
-          const cards = (t.aiMemoCards || []).map(card => `- ${card.title || "阅读卡片"}：${card.content || ""}`).join("\n");
-          const memo = [t.aiMemo || "", cards].filter(Boolean).join("\n").trim();
-          return memo ? `《${t.title}》\n${memo}` : "";
-        })
-        .filter(Boolean)
-        .slice(-5);
+          const memo = (t.aiMemo||"").trim();
+          const cards = (t.aiNoteCards||[]).map(c => c.body).join("\n");
+          const full = [memo, cards].filter(Boolean).join("\n");
+          return full ? `《${t.title}》\n${full}` : "";
+        }).filter(Boolean).slice(-5);
     }
 
-    function collectMyMemos(excludeTextId) {
-      return state.texts
-        .filter(t => t.id !== excludeTextId)
+    function collectMyMemos(excludeId) {
+      return state.texts.filter(t => t.id !== excludeId)
         .map(t => {
-          const memo = (t.myMemo || "").trim();
+          const memo = (t.myMemo||"").trim();
           return memo ? `《${t.title}》\n${memo}` : "";
-        })
-        .filter(Boolean)
-        .slice(-5);
+        }).filter(Boolean).slice(-5);
     }
 
-    function commentsFor(text, paragraphIndex) {
-      return (text.aiComments || []).filter(c => Number(c.paragraphIndex) === Number(paragraphIndex));
+    function commentsFor(text, pIdx) {
+      return (text.aiComments||[]).filter(c => Number(c.paragraphIndex) === Number(pIdx));
     }
 
+    /* ───────── 渲染：首页 ───────── */
     function renderHome() {
       currentTextId = null;
-      document.body.classList.remove("panel-open");
-
+      closeSidebar();
       const main = document.getElementById("main");
-
       if (!state.texts.length) {
-        main.innerHTML = `
-          <div class="empty">
-            <div>
-              <h1>这里暂时是空白</h1>
-              <p>点右上角「＋」上传 UTF-8 TXT。<br>上传后会生成正文阅读页、AI 小批注和可编辑阅读备忘录。</p>
-            </div>
-          </div>
-        `;
+        main.innerHTML = `<div class="empty"><div><h1>还没有文章</h1><p>点右上角「＋」上传 UTF-8 TXT 文件<br>上传后 AI 会阅读全文，生成批注和阅读笔记</p></div></div>`;
         return;
       }
-
-      main.innerHTML = `
-        <div class="home-list">
-          ${state.texts.map(text => `
-            <article class="book-card" onclick="renderReader('${text.id}')">
-              <h2>${escapeHtml(text.title)}</h2>
-              <div class="meta">
-                ${text.content.length} 字 / ${text.paragraphs.length} 个阅读段 / AI 批注 ${(text.aiComments || []).length} 条<br>
-                最近阅读：${formatDate(text.updatedAt || text.createdAt)}
-              </div>
-            </article>
-          `).join("")}
-        </div>
-      `;
+      main.innerHTML = `<div class="home-list">${state.texts.map(t => `
+        <article class="book-card" onclick="renderReader('${t.id}')">
+          <h2>${esc(t.title)}</h2>
+          <div class="meta">${t.content.length} 字 / ${t.paragraphs.length} 段 / AI批注 ${(t.aiComments||[]).length} 条<br>${fmtDate(t.updatedAt)}</div>
+        </article>
+      `).join("")}</div>`;
     }
 
+    /* ───────── 渲染：阅读页 ───────── */
     function renderReader(textId) {
       const text = getText(textId);
       if (!text) return renderHome();
-
       currentTextId = textId;
       text.updatedAt = new Date().toISOString();
-      saveState();
+      save();
 
       const main = document.getElementById("main");
-
       main.innerHTML = `
         <section class="reader-head">
           <div class="reader-tools">
-            <button class="secondary" onclick="renderHome(); closePanel();">← 返回书架</button>
-            <button class="secondary" onclick="deleteText('${text.id}')">删除</button>
+            <button class="secondary" onclick="renderHome()">← 书架</button>
+            <div class="topbar-group">
+              <button class="mini" onclick="openNotesView()">📒 笔记</button>
+              <button class="secondary" style="font-size:12px;color:#b44;" onclick="deleteText('${text.id}')">删除</button>
+            </div>
           </div>
-
-          <h1>${escapeHtml(text.title)}</h1>
-          <div class="summary">
-            ${text.content.length} 字 / ${text.paragraphs.length} 个阅读段
-            ${text.aiMemo ? `<br>AI 备忘录：${escapeHtml(text.aiMemo.slice(0, 90))}${text.aiMemo.length > 90 ? "…" : ""}` : ""}
-          </div>
+          <h1>${esc(text.title)}</h1>
+          <div class="summary">${text.content.length} 字 / ${text.paragraphs.length} 段</div>
         </section>
-
         <article class="novel">
-          ${text.paragraphs.map((p, i) => `
-            <section class="para-wrap">
-              <p class="novel-p">
-                ${escapeHtml(p.text)}
-                <button class="tri ${commentsFor(text, i).length ? "has-comment" : ""}" onclick="openChatPanel('${text.id}', ${i})" title="${commentsFor(text, i).length ? "查看 AI 批注并聊聊这一段" : "聊聊这一段"}" aria-label="${commentsFor(text, i).length ? "查看 AI 批注并聊聊这一段" : "聊聊这一段"}">▸</button>
-              </p>
-
-            </section>
-          `).join("")}
+          ${text.paragraphs.map((p, i) => {
+            const hasNote = commentsFor(text, i).length > 0;
+            return `<section class="para-wrap">
+              <p class="novel-p">${esc(p.text)}<button class="tri${hasNote ? " has-note" : ""}" onclick="openParaChat('${text.id}',${i})" title="${hasNote ? "有AI批注，点击查看" : "和AI聊聊这段"}">▸</button></p>
+              ${commentsFor(text, i).map(c => `
+                <div class="ai-note-inline" onclick="openParaChat('${text.id}',${i})">
+                  <span class="ntag">${esc(c.tag||"AI")}</span>${esc(c.comment||"")}
+                </div>
+              `).join("")}
+            </section>`;
+          }).join("")}
         </article>
       `;
     }
 
+    /* ───────── 侧边栏 ───────── */
+    function openSidebar(title, bodyHtml, footerHtml) {
+      document.getElementById("sidebarTitle").textContent = title;
+      document.getElementById("sidebarBody").innerHTML = bodyHtml;
+      const footer = document.getElementById("sidebarFooter");
+      if (footerHtml) { footer.innerHTML = footerHtml; footer.classList.add("show"); }
+      else { footer.innerHTML = ""; footer.classList.remove("show"); }
+      document.getElementById("sidebar").classList.add("open");
+    }
+
+    function closeSidebar() {
+      document.getElementById("sidebar").classList.remove("open");
+      document.getElementById("sidebarFooter").classList.remove("show");
+      currentChat = null;
+      stopThinking();
+    }
+
+    /* ───────── 段落聊天侧边栏 ───────── */
+    function openParaChat(textId, pIdx) {
+      currentChat = { textId, paragraphIndex: pIdx };
+      renderParaChat();
+    }
+
+    function renderParaChat() {
+      if (!currentChat) return;
+      const text = getText(currentChat.textId);
+      const i = currentChat.paragraphIndex;
+      const p = text.paragraphs[i];
+      const comments = commentsFor(text, i);
+      const history = p.chatHistory || [];
+
+      let body = `<div class="current-para-box">${esc(p.text)}</div>`;
+
+      if (comments.length) {
+        body += `<div class="note-card"><h3 style="color:var(--green)">AI 批注</h3>`;
+        comments.forEach(c => {
+          body += `<div style="margin:4px 0;font-size:13px;line-height:1.55;"><span class="ntag" style="background:rgba(74,140,92,0.7);color:#fff;font-size:11px;border-radius:999px;padding:0 6px;margin-right:4px;">${esc(c.tag||"AI")}</span>${esc(c.comment||"")}</div>`;
+        });
+        body += `</div>`;
+      }
+
+      if (history.length) {
+        history.forEach((m, idx) => {
+          body += `<div class="chat-msg ${m.role==="user"?"chat-user":"chat-ai"}">${esc(m.content)}<div class="chat-tools">
+            <button class="mini" onclick="excerptToMemo(${idx},'${m.role==="assistant"?"ai":"my"}')">${m.role==="assistant"?"摘到AI笔记":"摘到我的笔记"}</button>
+          </div></div>`;
+        });
+      } else if (!comments.length) {
+        body += `<p class="small" style="text-align:center;padding:12px;">可以和 AI 聊聊这一段</p>`;
+      }
+
+      body += `<div id="thinkingArea"></div>`;
+
+      openSidebar(
+        `第 ${i+1} 段`,
+        body,
+        `<textarea id="chatInput" placeholder="说点什么…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea><button onclick="sendChat()">发送</button>`
+      );
+
+      // scroll to bottom
+      setTimeout(() => {
+        const sb = document.getElementById("sidebarBody");
+        sb.scrollTop = sb.scrollHeight;
+      }, 50);
+    }
+
+    /* ───────── thinking indicator ───────── */
+    function startThinking() {
+      stopThinking();
+      const area = document.getElementById("thinkingArea");
+      if (!area) return;
+      const start = Date.now();
+      area.innerHTML = `<div class="thinking-indicator"><div class="thinking-dots"><span></span><span></span><span></span></div><span>AI 思考中…</span><span class="thinking-timer" id="thinkTimer">0s</span></div>`;
+      thinkingTimer = setInterval(() => {
+        const el = document.getElementById("thinkTimer");
+        if (el) el.textContent = Math.floor((Date.now() - start) / 1000) + "s";
+      }, 500);
+    }
+
+    function stopThinking() {
+      if (thinkingTimer) { clearInterval(thinkingTimer); thinkingTimer = null; }
+      const area = document.getElementById("thinkingArea");
+      if (area) area.innerHTML = "";
+    }
+
+    /* ───────── 发送聊天 ───────── */
+    async function sendChat() {
+      if (!currentChat) return;
+      const input = document.getElementById("chatInput");
+      const msg = (input.value || "").trim();
+      if (!msg) return;
+      input.value = "";
+
+      const text = getText(currentChat.textId);
+      const i = currentChat.paragraphIndex;
+      const p = text.paragraphs[i];
+      p.chatHistory = p.chatHistory || [];
+      p.chatHistory.push({ role: "user", content: msg });
+      save();
+      renderParaChat();
+      startThinking();
+
+      try {
+        const result = await callWorker("/chat", {
+          currentParagraph: p.text,
+          previousParagraph: text.paragraphs[i-1]?.text || "",
+          nextParagraph: text.paragraphs[i+1]?.text || "",
+          userMessage: msg,
+          chatHistory: p.chatHistory.slice(0, -1),
+          textAiNote: text.aiMemo || "",
+          memoryMode: state.settings.memoryMode,
+          aiNotes: collectAiMemos(text.id),
+          myNotes: collectMyMemos(text.id)
+        });
+
+        stopThinking();
+        const reply = result.reply || "AI 没有返回内容。";
+        p.chatHistory.push({ role: "assistant", content: reply });
+
+        // AI 可能在聊天中产生新感悟，尝试自动生成笔记卡片
+        maybeAutoNoteCard(text, i, msg, reply);
+
+        save();
+        renderParaChat();
+      } catch (err) {
+        stopThinking();
+        p.chatHistory.push({ role: "assistant", content: "请求失败：" + err.message });
+        save();
+        renderParaChat();
+      }
+    }
+
+    /* 根据聊天内容，自动在 AI 笔记里追加卡片 */
+    function maybeAutoNoteCard(text, pIdx, userMsg, aiReply) {
+      // 简单规则：如果AI回复里提到了"值得注意""关键""精彩""有意思""摘抄"等关键词，
+      // 或回复超过 80 字，就自动记一张卡片
+      const triggers = ["值得注意","关键","精彩","有意思","亮点","摘抄","印象深","巧妙","核心","重要"];
+      const shouldNote = aiReply.length > 80 || triggers.some(w => aiReply.includes(w));
+      if (!shouldNote) return;
+
+      text.aiNoteCards = text.aiNoteCards || [];
+      text.aiNoteCards.push({
+        id: uid("nc"),
+        time: new Date().toISOString(),
+        paraIndex: pIdx,
+        trigger: userMsg.slice(0, 50),
+        body: aiReply.length > 150 ? aiReply.slice(0, 150) + "…" : aiReply,
+        quote: text.paragraphs[pIdx]?.text.slice(0, 80) || ""
+      });
+    }
+
+    function excerptToMemo(msgIdx, kind) {
+      if (!currentChat) return;
+      const text = getText(currentChat.textId);
+      const p = text.paragraphs[currentChat.paragraphIndex];
+      const m = p.chatHistory[msgIdx];
+      if (!m) return;
+      const line = `【第${currentChat.paragraphIndex+1}段】${m.content}`;
+      if (kind === "ai") {
+        text.aiMemo = (text.aiMemo||"").trim() ? text.aiMemo.trim()+"\n\n"+line : line;
+      } else {
+        text.myMemo = (text.myMemo||"").trim() ? text.myMemo.trim()+"\n\n"+line : line;
+      }
+      save();
+      showToast(kind==="ai" ? "已摘到 AI 笔记" : "已摘到我的笔记");
+    }
+
+    /* ───────── 笔记视图 ───────── */
+    function openNotesView() {
+      if (currentTextId) {
+        openTextNotes(currentTextId);
+      } else {
+        openAllNotes();
+      }
+    }
+
+    function openTextNotes(textId) {
+      const text = getText(textId);
+      if (!text) return;
+      const cards = text.aiNoteCards || [];
+
+      let body = `
+        <div class="note-card">
+          <h3>📘 AI 阅读笔记</h3>
+          <div class="note-time">${fmtDate(text.createdAt)} · ${text.content.length}字</div>
+          <textarea id="aiMemoEdit" style="min-height:100px;">${esc(text.aiMemo||"")}</textarea>
+          <div class="note-actions"><button class="mini" onclick="saveTextNotes()">保存</button></div>
+        </div>
+
+        ${cards.length ? `<div class="small" style="margin:10px 0 6px;">AI 聊天感悟 (${cards.length})</div>` : ""}
+        ${cards.map(c => `
+          <div class="note-card">
+            <div class="note-time">${fmtTime(c.time)} · 第${(c.paraIndex||0)+1}段</div>
+            <div class="note-body">${esc(c.body)}</div>
+            ${c.quote ? `<div class="note-quote">${esc(c.quote)}</div>` : ""}
+            <div class="note-actions">
+              <button class="mini" onclick="deleteNoteCard('${text.id}','${c.id}')">删除</button>
+            </div>
+          </div>
+        `).join("")}
+
+        <div class="note-card" style="margin-top:14px;">
+          <h3>📝 我的笔记</h3>
+          <textarea id="myMemoEdit" style="min-height:80px;">${esc(text.myMemo||"")}</textarea>
+          <div class="note-actions">
+            <button class="mini" onclick="saveTextNotes()">保存</button>
+          </div>
+        </div>
+
+        <div class="note-actions" style="margin-top:12px;">
+          <button class="mini" onclick="openAllNotes()">查看全部文章笔记</button>
+        </div>
+      `;
+      openSidebar("阅读笔记 · " + text.title.slice(0,8), body);
+    }
+
+    function saveTextNotes() {
+      const text = getText(currentTextId);
+      if (!text) return;
+      const aiBox = document.getElementById("aiMemoEdit");
+      const myBox = document.getElementById("myMemoEdit");
+      if (aiBox) text.aiMemo = aiBox.value.trim();
+      if (myBox) text.myMemo = myBox.value.trim();
+      text.updatedAt = new Date().toISOString();
+      save();
+      showToast("笔记已保存");
+    }
+
+    function deleteNoteCard(textId, cardId) {
+      const text = getText(textId);
+      if (!text) return;
+      text.aiNoteCards = (text.aiNoteCards||[]).filter(c => c.id !== cardId);
+      save();
+      openTextNotes(textId);
+      showToast("已删除");
+    }
+
+    function openAllNotes() {
+      let body = "";
+      if (!state.texts.length) {
+        body = `<p class="small">暂无笔记</p>`;
+      } else {
+        state.texts.forEach(t => {
+          body += `<div class="note-card">
+            <h3>${esc(t.title)}</h3>
+            <div class="note-time">${fmtDate(t.createdAt)}</div>
+            <div class="small" style="margin:4px 0;">AI笔记</div>
+            <div class="note-body" style="max-height:80px;overflow:hidden;">${esc((t.aiMemo||"暂无").slice(0,200))}</div>
+            <div class="small" style="margin:4px 0;">我的笔记</div>
+            <div class="note-body" style="max-height:60px;overflow:hidden;">${esc((t.myMemo||"暂无").slice(0,150))}</div>
+            <div class="note-actions">
+              <button class="mini" onclick="renderReader('${t.id}');closeSidebar();">打开</button>
+              <button class="mini" onclick="openTextNotes('${t.id}')">编辑笔记</button>
+            </div>
+          </div>`;
+        });
+      }
+      openSidebar("全部笔记", body);
+    }
+
+    /* ───────── 设置弹窗 ───────── */
+    function openSettings() {
+      const box = document.getElementById("settingsBox");
+      box.innerHTML = `
+        <h2>⚙ 设置</h2>
+        <label>Worker URL</label>
+        <input id="setUrl" value="${esc(state.settings.workerUrl)}" placeholder="https://xxx.workers.dev" />
+        <label>记忆权限</label>
+        <select id="setMemory">
+          <option value="none" ${state.settings.memoryMode==="none"?"selected":""}>不读取过往笔记</option>
+          <option value="ai" ${state.settings.memoryMode==="ai"?"selected":""}>只读取 AI 备忘录</option>
+          <option value="all" ${state.settings.memoryMode==="all"?"selected":""}>AI + 我的备忘录</option>
+        </select>
+        <p class="small" style="margin:12px 0;">API Key 在 Worker 环境变量中，不在网页里存储。</p>
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button onclick="saveSettings()">保存</button>
+          <button class="secondary" onclick="closeSettings()">取消</button>
+        </div>
+      `;
+      document.getElementById("settingsModal").classList.add("open");
+    }
+
+    function closeSettings() {
+      document.getElementById("settingsModal").classList.remove("open");
+    }
+
+    function saveSettings() {
+      state.settings.workerUrl = document.getElementById("setUrl").value.trim();
+      state.settings.memoryMode = document.getElementById("setMemory").value;
+      save();
+      showToast("设置已保存");
+      closeSettings();
+    }
+
+    /* ───────── 文件上传 ───────── */
     async function handleFileUpload(event) {
       const file = event.target.files[0];
       event.target.value = "";
       if (!file) return;
 
       if (!state.settings.workerUrl) {
-        openSettingsPanel();
+        openSettings();
         showToast("请先填写 Worker URL");
         return;
       }
 
       const content = await file.text();
-      const paragraphs = smartSplitParagraphs(content);
+      const paragraphs = smartSplit(content);
 
       if (!paragraphs.length) {
-        alert("没有读到有效段落。请确认 TXT 是 UTF-8 编码。若原文没有空行，本版也会尝试自动智能分段。");
+        showToast("未读到有效段落，请检查文件编码");
         return;
       }
 
       const text = {
-        id: uid("text"),
+        id: uid("t"),
         title: file.name.replace(/\.txt$/i, ""),
         content,
-        paragraphs: paragraphs.map((p, i) => ({
-          id: uid("p"),
-          index: i,
-          text: p,
-          chatHistory: []
-        })),
+        paragraphs: paragraphs.map((p, i) => ({ id: uid("p"), index: i, text: p, chatHistory: [] })),
         aiComments: [],
-        aiReadingNote: "",
-        aiMemo: "AI 正在阅读中……",
-        aiMemoCards: [],
+        aiMemo: "",
+        aiNoteCards: [],
         myMemo: "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
       state.texts.unshift(text);
-      saveState();
+      save();
       renderReader(text.id);
 
+      // AI annotate
+      showLoading(true);
       try {
-        document.body.classList.add("loading");
-        showToast("AI 正在阅读文本……");
-
         const result = await callWorker("/annotate", {
           title: text.title,
           paragraphs: text.paragraphs.map(p => p.text),
@@ -968,459 +991,80 @@
         });
 
         const parsed = result.parsed;
-
         if (parsed) {
-          const overall = parsed.overallNote || "AI 已阅读，但没有留下整篇备忘录。";
-          text.aiReadingNote = overall;
-          text.aiMemo = makeInitialAiMemo(text.title, overall, text.content.length, text.paragraphs.length);
+          text.aiMemo = parsed.overallNote || "AI 已读完，未留下总结。";
           text.aiComments = Array.isArray(parsed.comments) ? parsed.comments : [];
         } else {
-          const raw = result.raw || "AI 返回内容无法解析。";
-          text.aiReadingNote = raw;
-          text.aiMemo = makeInitialAiMemo(text.title, raw, text.content.length, text.paragraphs.length);
+          text.aiMemo = result.raw || "AI 返回内容无法解析。";
           text.aiComments = [];
         }
 
-        saveState();
+        // 初始笔记卡片
+        text.aiNoteCards = [{
+          id: uid("nc"),
+          time: new Date().toISOString(),
+          paraIndex: -1,
+          trigger: "初次阅读",
+          body: text.aiMemo.slice(0, 200),
+          quote: ""
+        }];
+
+        save();
         renderReader(text.id);
+        showToast("AI 阅读完成！");
       } catch (err) {
         text.aiMemo = "AI 阅读失败：" + err.message;
-        saveState();
+        save();
         renderReader(text.id);
-        alert("AI 阅读失败：" + err.message);
+        showToast("AI 阅读失败");
       } finally {
-        document.body.classList.remove("loading");
+        showLoading(false);
       }
     }
 
-    function makeInitialAiMemo(title, note, charCount, paragraphCount) {
-      return [
-        `时间：${formatDate(new Date().toISOString())}`,
-        `文本：${title}`,
-        `规模：约 ${charCount} 字，${paragraphCount} 个阅读段`,
-        "",
-        "概览：",
-        note || "暂无"
-      ].join("\n");
+    /* ───────── Loading ───────── */
+    let loadTimerInterval = null;
+    function showLoading(show) {
+      const el = document.getElementById("loadingOverlay");
+      if (show) {
+        el.classList.add("show");
+        const start = Date.now();
+        loadTimerInterval = setInterval(() => {
+          document.getElementById("loadTimer").textContent = Math.floor((Date.now()-start)/1000) + "s";
+        }, 500);
+      } else {
+        el.classList.remove("show");
+        if (loadTimerInterval) { clearInterval(loadTimerInterval); loadTimerInterval = null; }
+      }
     }
 
+    /* ───────── Worker 调用 ───────── */
     async function callWorker(path, body) {
-      const base = state.settings.workerUrl.replace(/\/$/, "");
-      const response = await fetch(base + path, {
+      const base = state.settings.workerUrl.replace(/\/$/,"");
+      const resp = await fetch(base + path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-
-      const text = await response.text();
-
+      const raw = await resp.text();
       let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(text || "Worker 返回的不是 JSON");
-      }
-
-      if (!response.ok || data.error) {
-        throw new Error(data.message || "Worker 请求失败");
-      }
-
+      try { data = JSON.parse(raw); } catch { throw new Error(raw || "Worker 返回非 JSON"); }
+      if (!resp.ok || data.error) throw new Error(data.message || "Worker 请求失败");
       return data;
     }
 
-    function openPanel(title, bodyHtml, footerHtml = "") {
-      document.getElementById("panelTitle").textContent = title;
-      document.getElementById("panelBody").innerHTML = bodyHtml;
-
-      const footer = document.getElementById("panelFooter");
-      if (footerHtml) {
-        footer.innerHTML = footerHtml;
-        footer.style.display = "flex";
-      } else {
-        footer.innerHTML = "";
-        footer.style.display = "none";
-      }
-
-      document.getElementById("panel").classList.add("open");
-      document.getElementById("panelMask").classList.add("open");
-      document.body.classList.add("panel-open");
-    }
-
-    function closePanel() {
-      document.getElementById("panel").classList.remove("open");
-      document.getElementById("panelMask").classList.remove("open");
-      document.getElementById("panelFooter").style.display = "none";
-      document.body.classList.remove("panel-open");
-      currentChat = null;
-      stopThinkingTimer();
-    }
-
-    function openSettingsPanel() {
-      openPanel("API 设置", `
-        <label>Worker URL</label>
-        <input id="workerUrlInput" value="${escapeHtml(state.settings.workerUrl || "")}" placeholder="https://xxx.workers.dev" />
-
-        <label>记忆权限</label>
-        <select id="memoryModeInput">
-          <option value="none" ${state.settings.memoryMode === "none" ? "selected" : ""}>不读取过往笔记</option>
-          <option value="ai" ${state.settings.memoryMode === "ai" ? "selected" : ""}>只读取过往 AI 备忘录</option>
-          <option value="all" ${state.settings.memoryMode === "all" ? "selected" : ""}>读取 AI 备忘录 + 我的备忘录</option>
-        </select>
-
-        <p class="small">API Key 不在网页里填写。它仍然放在 Cloudflare Worker 的环境变量里。</p>
-
-        <div class="memo-actions">
-          <button onclick="saveSettings()">保存设置</button>
-        </div>
-      `);
-    }
-
-    function saveSettings() {
-      state.settings.workerUrl = document.getElementById("workerUrlInput").value.trim();
-      state.settings.memoryMode = document.getElementById("memoryModeInput").value;
-      saveState();
-      showToast("设置已保存");
-      closePanel();
-    }
-
-    function openNotesPanel() {
-      if (!currentTextId) {
-        openAllNotesPanel();
-        return;
-      }
-
-      const text = getText(currentTextId);
-      if (!text) return openAllNotesPanel();
-
-      openPanel("阅读笔记", `
-        <div class="small" style="margin-bottom:12px;">当前文本：${escapeHtml(text.title)}</div>
-
-        <div class="memo-box">
-          <h3>我的阅读备忘录</h3>
-          <textarea id="myMemoInput" placeholder="这里写你自己的阅读笔记。AI 之后可以在你允许时读取它。">${escapeHtml(text.myMemo || "")}</textarea>
-          <div class="memo-actions">
-            <button class="mini" onclick="appendMemoLine('my')">＋ 追加一条</button>
-            <button class="mini" onclick="clearMemo('my')">清空</button>
-          </div>
-        </div>
-
-        <div class="memo-box">
-          <h3>AI 阅读备忘录</h3>
-          <textarea id="aiMemoInput" placeholder="这里是 AI 对这篇文章的长期备忘录，可以编辑。">${escapeHtml(text.aiMemo || "")}</textarea>
-          <div class="memo-actions">
-            <button class="mini" onclick="appendMemoLine('ai')">＋ 追加一条</button>
-            <button class="mini" onclick="polishAiMemo()">AI 整理</button>
-            <button class="mini" onclick="clearMemo('ai')">清空</button>
-          </div>
-        </div>
-
-        <div class="memo-box">
-          <h3>AI 过程卡片</h3>
-          ${(text.aiMemoCards || []).length ? text.aiMemoCards.map(card => `
-            <div class="note-card">
-              <h3>${escapeHtml(card.title || "阅读卡片")}</h3>
-              <div class="time">${formatDate(card.createdAt)}</div>
-              <div style="white-space:pre-wrap; line-height:1.65;">${escapeHtml(card.content || "")}</div>
-            </div>
-          `).join("") : `<p class="small">聊天过程中，AI 可以把它觉得值得留下的判断、摘抄或感受自动沉淀成卡片。</p>`}
-        </div>
-
-        <div class="memo-actions">
-          <button onclick="saveMemos()">保存两份备忘录</button>
-          <button class="secondary" onclick="openAllNotesPanel()">查看全部文章备忘录</button>
-        </div>
-      `);
-    }
-
-    function openAllNotesPanel() {
-      openPanel("全部阅读笔记", `
-        ${state.texts.length ? state.texts.map(text => `
-          <div class="memo-box">
-            <h3>${escapeHtml(text.title)}</h3>
-            <div class="small">我的备忘录</div>
-            <div style="white-space:pre-wrap; line-height:1.65; margin-bottom:10px;">${escapeHtml((text.myMemo || "").slice(0, 260) || "暂无")}</div>
-            <div class="small">AI 备忘录</div>
-            <div style="white-space:pre-wrap; line-height:1.65;">${escapeHtml((text.aiMemo || "").slice(0, 260) || "暂无")}</div>
-            ${(text.aiMemoCards || []).length ? `<div class="small" style="margin-top:8px;">AI 过程卡片：${text.aiMemoCards.length} 张</div>` : ""}
-            <div class="memo-actions">
-              <button class="mini" onclick="renderReader('${text.id}'); closePanel();">打开这篇</button>
-            </div>
-          </div>
-        `).join("") : `<p class="small">暂无阅读笔记。</p>`}
-      `);
-    }
-
-    function saveMemos() {
-      const text = getText(currentTextId);
-      if (!text) return;
-
-      text.myMemo = document.getElementById("myMemoInput").value.trim();
-      text.aiMemo = document.getElementById("aiMemoInput").value.trim();
-      text.updatedAt = new Date().toISOString();
-
-      saveState();
-      showToast("备忘录已保存");
-      renderReader(text.id);
-      openNotesPanel();
-    }
-
-    function appendMemoLine(kind) {
-      const id = kind === "my" ? "myMemoInput" : "aiMemoInput";
-      const box = document.getElementById(id);
-      if (!box) return;
-
-      const line = prompt(kind === "my" ? "追加到我的阅读备忘录：" : "追加到 AI 阅读备忘录：", "");
-      if (!line || !line.trim()) return;
-
-      const prefix = box.value.trim() ? "\n\n" : "";
-      box.value = box.value + prefix + "＋ " + line.trim();
-    }
-
-    function clearMemo(kind) {
-      const id = kind === "my" ? "myMemoInput" : "aiMemoInput";
-      const box = document.getElementById(id);
-      if (!box) return;
-
-      if (!confirm("确定清空这一块备忘录？")) return;
-      box.value = "";
-    }
-
-    async function polishAiMemo() {
-      const text = getText(currentTextId);
-      if (!text) return;
-
-      const aiBox = document.getElementById("aiMemoInput");
-      const myBox = document.getElementById("myMemoInput");
-
-      const material = [
-        "当前 AI 备忘录：",
-        aiBox.value || "暂无",
-        "",
-        "我的阅读备忘录：",
-        myBox.value || "暂无",
-        "",
-        "AI 段落批注：",
-        (text.aiComments || []).map(c => `第${Number(c.paragraphIndex) + 1}段：${c.tag || ""} ${c.comment || ""}`).join("\n") || "暂无",
-        "",
-        "AI 过程卡片：",
-        (text.aiMemoCards || []).map(card => `${card.title || "阅读卡片"}：${card.content || ""}`).join("\n") || "暂无"
-      ].join("\n");
-
-      try {
-        showToast("AI 正在整理备忘录……");
-
-        const result = await callWorker("/chat", {
-          currentParagraph: material,
-          previousParagraph: "",
-          nextParagraph: "",
-          userMessage: "请把以上内容整理成一份适合作为本篇文章长期记忆的 AI 阅读备忘录。要求：不要像作文，不要复述原文，保留具体判断和阅读感受，控制在 220 字以内。",
-          chatHistory: [],
-          textAiNote: aiBox.value,
-          memoryMode: "none",
-          aiNotes: [],
-          myNotes: []
-        });
-
-        aiBox.value = result.reply || aiBox.value;
-        showToast("AI 备忘录已整理");
-      } catch (err) {
-        alert("整理失败：" + err.message);
-      }
-    }
-
-    function openChatPanel(textId, paragraphIndex) {
-      currentChat = { textId, paragraphIndex, isThinking: false };
-      renderChatPanel();
-    }
-
-    function renderChatPanel() {
-      if (!currentChat) return;
-
-      const text = getText(currentChat.textId);
-      const i = currentChat.paragraphIndex;
-      const p = text.paragraphs[i];
-      const history = p.chatHistory || [];
-      const paraComments = commentsFor(text, i);
-
-      openPanel(
-        `第 ${i + 1} 段`,
-        `
-          <div class="current-para">${escapeHtml(p.text)}</div>
-
-          ${paraComments.length ? `
-            <div class="memo-box">
-              <h3>AI 对这一段的批注</h3>
-              ${paraComments.map(c => `
-                <div class="ai-note-inline" style="margin-left:0; max-width:100%;">
-                  <span class="tag">${escapeHtml(c.tag || "AI")}</span>
-                  ${escapeHtml(c.comment || "")}
-                </div>
-              `).join("")}
-            </div>
-          ` : `
-            <p class="small">这一段暂时没有 AI 批注。你可以直接在下面问它。</p>
-          `}
-
-          ${history.length ? history.map((m, idx) => `
-            <div class="chat-msg ${m.role === "user" ? "chat-user" : "chat-ai"}">
-              ${escapeHtml(m.content)}
-              <div class="chat-tools">
-                ${m.role === "assistant"
-                  ? `<button class="mini" onclick="appendChatToMemo(${idx}, 'ai')">摘到 AI 备忘录</button>`
-                  : `<button class="mini" onclick="appendChatToMemo(${idx}, 'my')">摘到我的备忘录</button>`
-                }
-              </div>
-            </div>
-          `).join("") : `
-            <p class="small">这里可以只聊当前这一段。系统只会发送当前段落、相邻段落、当前文本备忘录，以及你允许的少量过往备忘录。</p>
-          `}
-
-          ${currentChat.isThinking ? `
-            <div class="chat-msg thinking">
-              <span class="dot">AI 正在思考</span>
-              <span id="thinkingSeconds">0</span> 秒
-            </div>
-          ` : ""}
-        `,
-        `
-          <textarea id="chatInput" placeholder="问问这一段……" ${currentChat.isThinking ? "disabled" : ""}></textarea>
-          <button id="sendBtn" onclick="sendChat()" ${currentChat.isThinking ? "disabled" : ""}>发送</button>
-        `
-      );
-
-      const body = document.getElementById("panelBody");
-      body.scrollTop = body.scrollHeight;
-      if (currentChat.isThinking) startThinkingTimer();
-    }
-
-    function startThinkingTimer() {
-      stopThinkingTimer();
-      thinkingStartedAt = Date.now();
-      thinkingTimer = setInterval(() => {
-        const el = document.getElementById("thinkingSeconds");
-        if (el && thinkingStartedAt) {
-          el.textContent = String(Math.floor((Date.now() - thinkingStartedAt) / 1000));
-        }
-      }, 300);
-    }
-
-    function stopThinkingTimer() {
-      clearInterval(thinkingTimer);
-      thinkingTimer = null;
-      thinkingStartedAt = null;
-    }
-
-    async function sendChat() {
-      if (!currentChat || currentChat.isThinking) return;
-
-      const input = document.getElementById("chatInput");
-      const userMessage = input.value.trim();
-      if (!userMessage) return;
-
-      const text = getText(currentChat.textId);
-      const i = currentChat.paragraphIndex;
-      const p = text.paragraphs[i];
-
-      p.chatHistory = p.chatHistory || [];
-      p.chatHistory.push({ role: "user", content: userMessage });
-
-      currentChat.isThinking = true;
-      saveState();
-      renderChatPanel();
-
-      try {
-        const result = await callWorker("/chat", {
-          currentParagraph: text.paragraphs[i]?.text || "",
-          previousParagraph: text.paragraphs[i - 1]?.text || "",
-          nextParagraph: text.paragraphs[i + 1]?.text || "",
-          userMessage,
-          chatHistory: p.chatHistory.slice(0, -1),
-          textAiNote: [text.aiMemo || text.aiReadingNote || "", ...(text.aiMemoCards || []).map(card => `${card.title || "阅读卡片"}：${card.content || ""}`)].filter(Boolean).join("\n\n"),
-          memoryMode: state.settings.memoryMode,
-          aiNotes: collectAiMemos(text.id),
-          myNotes: collectMyMemos(text.id)
-        });
-
-        p.chatHistory.push({
-          role: "assistant",
-          content: result.reply || "AI 没有返回内容。"
-        });
-
-        maybeAddAiMemoCard(text, i, userMessage, result.reply || "");
-
-        text.updatedAt = new Date().toISOString();
-        saveState();
-      } catch (err) {
-        p.chatHistory.push({
-          role: "assistant",
-          content: "聊天失败：" + err.message
-        });
-        saveState();
-      } finally {
-        currentChat.isThinking = false;
-        stopThinkingTimer();
-        renderChatPanel();
-      }
-    }
-
-    function maybeAddAiMemoCard(text, paragraphIndex, userMessage, aiReply) {
-      const shouldKeep = /摘|记|笔记|备忘|喜欢|好|妙|重要|伏笔|人物|情绪|结构|语言|原文|保留|卡片/.test(userMessage + aiReply);
-      if (!shouldKeep) return;
-
-      const source = text.paragraphs[paragraphIndex]?.text || "";
-      const excerpt = source.length > 120 ? source.slice(0, 120) + "…" : source;
-      const content = [
-        aiReply.length > 220 ? aiReply.slice(0, 220) + "…" : aiReply,
-        excerpt ? `\n原文片段：${excerpt}` : ""
-      ].join("\n").trim();
-
-      text.aiMemoCards = text.aiMemoCards || [];
-      text.aiMemoCards.push({
-        id: uid("card"),
-        title: `第 ${paragraphIndex + 1} 段的阅读发现`,
-        content,
-        paragraphIndex,
-        createdAt: new Date().toISOString()
-      });
-    }
-
-    function appendChatToMemo(messageIndex, kind) {
-      if (!currentChat) return;
-
-      const text = getText(currentChat.textId);
-      const p = text.paragraphs[currentChat.paragraphIndex];
-      const msg = p.chatHistory[messageIndex];
-
-      if (!msg) return;
-
-      const line = `【第 ${currentChat.paragraphIndex + 1} 段】${msg.content}`;
-
-      if (kind === "ai") {
-        text.aiMemo = (text.aiMemo || "").trim()
-          ? text.aiMemo.trim() + "\n\n" + line
-          : line;
-      } else {
-        text.myMemo = (text.myMemo || "").trim()
-          ? text.myMemo.trim() + "\n\n" + line
-          : line;
-      }
-
-      saveState();
-      showToast(kind === "ai" ? "已摘到 AI 备忘录" : "已摘到我的备忘录");
-    }
-
+    /* ───────── 删除 ───────── */
     function deleteText(textId) {
       const text = getText(textId);
       if (!text) return;
-
-      if (!confirm(`确定删除《${text.title}》？原文、批注、聊天、备忘录都会删除。`)) return;
-
+      if (!confirm(`确定删除《${text.title}》？`)) return;
       state.texts = state.texts.filter(t => t.id !== textId);
-      saveState();
+      save();
+      closeSidebar();
       renderHome();
-      closePanel();
     }
 
+    /* ───────── 启动 ───────── */
     renderHome();
   </script>
 </body>
