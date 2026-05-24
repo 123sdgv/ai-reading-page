@@ -593,6 +593,7 @@ function normalize(input) {
             id: p.id || uid("p"),
             index: i,
             text: typeof p === "string" ? p : (p.text || ""),
+            breakAfter: typeof p === "string" ? "" : (p.breakAfter || ""),
             chatHistory: Array.isArray(p.chatHistory) ? p.chatHistory : []
           }))
         : [],
@@ -630,46 +631,34 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.remove("show"), 1800);
 }
 
-// ===== 智能分段 =====
+// ===== TXT 原样分段 =====
+// 不再智能合并、trim、重排。
+// TXT 每一条非空行就是一个可聊天段落；原本的换行、空行会保存到上一段后面继续显示。
+// 这样正文视觉上尽量保持 TXT 原来的样子，只是在每段末尾插入三角按钮。
 function smartSplit(text) {
-  // 先统一换行
-  let s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!s.trim()) return [];
 
-  // 策略1: 如果有双换行（空行分段），按此切分
-  if (/\n\s*\n/.test(s)) {
-    const parts = s.split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
-    if (parts.length >= 2) return parts;
-  }
-
-  // 策略2: 按单换行切分，然后合并过短的行
-  const lines = s.split("\n").map(l => l.trim()).filter(Boolean);
-  if (lines.length <= 1) return lines.length ? lines : [s.trim()];
-
-  // 如果大部分行都较长（>50字），每行就是一个段落
-  const longCount = lines.filter(l => l.length > 50).length;
-  if (longCount > lines.length * 0.6) {
-    return lines;
-  }
-
-  // 否则尝试合并短行：遇到长停顿或对话标记才断段
+  const rows = s.match(/[^\n]*(?:\n+|$)/g) || [];
   const result = [];
-  let buf = "";
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const isDialogStart = /^["""「『【（(]/.test(line);
-    const prevEndsWithPunctuation = /[。！？…」』】）)"""]$/.test(buf);
 
-    if (buf && (isDialogStart || (prevEndsWithPunctuation && buf.length > 80))) {
-      result.push(buf);
-      buf = line;
-    } else {
-      buf = buf ? buf + "\n" + line : line;
+  for (const row of rows) {
+    if (row === "") continue;
+
+    const m = row.match(/^([\s\S]*?)(\n*)$/);
+    const line = m ? m[1] : row;
+    const breaks = m ? m[2] : "";
+
+    if (line.trim()) {
+      result.push({
+        text: line,
+        breakAfter: breaks || ""
+      });
+    } else if (result.length) {
+      result[result.length - 1].breakAfter =
+        (result[result.length - 1].breakAfter || "") + line + breaks;
     }
   }
-  if (buf) result.push(buf);
-
-  // 如果合并后段落太少，回退到单换行
-  if (result.length < 2 && lines.length >= 2) return lines;
 
   return result;
 }
@@ -714,6 +703,135 @@ async function callWorker(path, body) {
   try { data = JSON.parse(raw); } catch(e) { throw new Error(raw || "Worker返回非JSON"); }
   if (!resp.ok || data.error) throw new Error(data.message || data.error || "请求失败");
   return data;
+}
+
+// ===== Worker 流式调用 =====
+// 支持三种情况：
+// 1. text/event-stream：真正流式输出。
+// 2. text/plain：按文本流式输出。
+// 3. application/json：兼容原来的非流式 Worker，一次性显示 result.reply。
+async function callWorkerStream(path, body, onDelta) {
+  const base = state.settings.workerUrl.replace(/\/$/,"");
+  const resp = await fetch(base + path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "text/event-stream, text/plain, application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  const contentType = (resp.headers.get("content-type") || "").toLowerCase();
+
+  if (!resp.ok) {
+    const raw = await resp.text();
+    try {
+      const data = JSON.parse(raw);
+      throw new Error(data.message || data.error || "请求失败");
+    } catch(e) {
+      throw new Error(raw || e.message || "请求失败");
+    }
+  }
+
+  // 兼容原来的 JSON 返回
+  if (!resp.body || contentType.includes("application/json")) {
+    const raw = await resp.text();
+    let data;
+    try { data = JSON.parse(raw); } catch(e) { throw new Error(raw || "Worker返回非JSON"); }
+    if (data.error) throw new Error(data.message || data.error || "请求失败");
+    const reply = data.reply || data.raw || "";
+    if (reply) onDelta(reply, reply);
+    return { ...data, reply };
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let full = "";
+  let buffer = "";
+  let mode = contentType.includes("text/event-stream") ? "sse" : "plain";
+
+  function extractDelta(payload) {
+    if (!payload) return "";
+    if (payload.trim() === "[DONE]") return "";
+
+    try {
+      const obj = JSON.parse(payload);
+
+      if (typeof obj === "string") return obj;
+
+      return (
+        obj.delta ||
+        obj.content ||
+        obj.reply ||
+        obj.text ||
+        obj.message?.content ||
+        obj.choices?.[0]?.delta?.content ||
+        obj.choices?.[0]?.message?.content ||
+        obj.output?.[0]?.content?.[0]?.text ||
+        obj.delta?.text ||
+        ""
+      );
+    } catch(e) {
+      return payload;
+    }
+  }
+
+  function handleSseBlock(block) {
+    const lines = block.split(/\r?\n/);
+    const dataLines = lines
+      .filter(line => line.startsWith("data:"))
+      .map(line => line.replace(/^data:\s?/, ""));
+
+    if (!dataLines.length) return;
+
+    const payload = dataLines.join("\n");
+    const delta = extractDelta(payload);
+
+    if (delta) {
+      full += delta;
+      onDelta(delta, full);
+    }
+  }
+
+  while (true) {
+    const { value, done } = await reader.read();
+
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    if (!chunk) continue;
+
+    buffer += chunk;
+
+    // 如果服务端没写 content-type 但内容看起来是 SSE，也自动识别
+    if (mode === "plain" && /^\s*(event:|data:)/m.test(buffer)) {
+      mode = "sse";
+    }
+
+    if (mode === "sse") {
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() || "";
+      blocks.forEach(handleSseBlock);
+    } else {
+      full += buffer;
+      onDelta(buffer, full);
+      buffer = "";
+    }
+  }
+
+  const tail = decoder.decode();
+  if (tail) buffer += tail;
+
+  if (buffer) {
+    if (mode === "sse") {
+      handleSseBlock(buffer);
+    } else {
+      full += buffer;
+      onDelta(buffer, full);
+    }
+  }
+
+  return { reply: full };
 }
 
 // ===== 全局Loading =====
@@ -781,7 +899,11 @@ document.getElementById("fileInput").addEventListener("change", async function(e
     title: file.name.replace(/\.txt$/i, ""),
     content,
     paragraphs: paragraphs.map((p, i) => ({
-      id: uid("p"), index: i, text: p, chatHistory: []
+      id: uid("p"),
+      index: i,
+      text: p.text,
+      breakAfter: p.breakAfter || "",
+      chatHistory: []
     })),
     aiComments: [],
     aiMemo: "",
@@ -901,7 +1023,7 @@ function renderReader(id) {
           const hasComment = comments.length > 0;
           return `
             <div class="para-block" id="para_${i}">
-              <p class="novel-p">${esc(p.text)}<button class="tri-btn ${hasComment ? 'has-comment' : ''}" onclick="openChatForPara('${text.id}',${i})" title="${hasComment ? 'AI有批注，点击查看' : '点击与AI聊聊这段'}">▸</button></p>
+              <p class="novel-p">${esc(p.text)}<button class="tri-btn ${hasComment ? 'has-comment' : ''}" onclick="openChatForPara('${text.id}',${i})" title="${hasComment ? 'AI有批注，点击查看' : '点击与AI聊聊这段'}">▸</button>${esc(p.breakAfter || "")}</p>
               ${comments.map(c => `
                 <div class="inline-note">
                   <span class="note-tag">${esc(c.tag||"批注")}</span>${esc(c.comment||"")}
@@ -980,7 +1102,7 @@ function renderChatPanel(text, paraIndex) {
       <div class="chat-msg ${m.role==="user"?"chat-user":"chat-ai"}">
         ${esc(m.content)}
         <div class="chat-actions">
-          ${m.role === "assistant"
+          ${m.role === "assistant" && m.content
             ? `<button class="mini green" onclick="excerptToNotes(${idx})">摘到笔记</button>`
             : ""}
         </div>
@@ -1045,21 +1167,56 @@ async function sendChat() {
     }
   }, 500);
 
+  let assistantIndex = -1;
+  let fullReply = "";
+  let renderPending = false;
+
+  function scheduleRender() {
+    if (renderPending) return;
+    renderPending = true;
+    setTimeout(() => {
+      renderPending = false;
+      save();
+      renderChatPanel(text, i);
+    }, 80);
+  }
+
+  function appendAssistantDelta(delta, full) {
+    if (!delta && !full) return;
+
+    fullReply = full || (fullReply + delta);
+
+    if (assistantIndex === -1) {
+      p.chatHistory.push({ role: "assistant", content: "" });
+      assistantIndex = p.chatHistory.length - 1;
+    }
+
+    p.chatHistory[assistantIndex].content = fullReply;
+    scheduleRender();
+  }
+
   try {
-    const result = await callWorker("/chat", {
+    const result = await callWorkerStream("/chat", {
       currentParagraph: p.text,
       previousParagraph: text.paragraphs[i-1]?.text || "",
       nextParagraph: text.paragraphs[i+1]?.text || "",
       userMessage: msg,
-      chatHistory: p.chatHistory.slice(0, -1),
+      chatHistory: p.chatHistory.filter(m => !(m.role === "assistant" && m.content === "")).slice(0, -1),
       textAiNote: text.aiMemo || "",
       memoryMode: state.settings.memoryMode,
       aiNotes: collectAiMemos(text.id),
       myNotes: collectMyMemos(text.id)
-    });
+    }, appendAssistantDelta);
 
-    const reply = result.reply || "AI 没有返回内容。";
-    p.chatHistory.push({ role: "assistant", content: reply });
+    if (!fullReply) {
+      fullReply = result.reply || "AI 没有返回内容。";
+      if (assistantIndex === -1) {
+        p.chatHistory.push({ role: "assistant", content: fullReply });
+        assistantIndex = p.chatHistory.length - 1;
+      } else {
+        p.chatHistory[assistantIndex].content = fullReply;
+      }
+    }
 
     // AI 聊天过程中可能产生的笔记卡片（让AI自己决定是否值得记录）
     // 这里先简单处理：每3轮对话自动追加一张卡片
@@ -1069,7 +1226,7 @@ async function sendChat() {
         id: uid("nc"),
         type: "ai-chat-insight",
         title: `第${i+1}段 对话感悟`,
-        content: reply.length > 200 ? reply.slice(0, 200) + "…" : reply,
+        content: fullReply.length > 200 ? fullReply.slice(0, 200) + "…" : fullReply,
         excerpt: p.text.slice(0, 80),
         createdAt: new Date().toISOString()
       });
@@ -1077,7 +1234,11 @@ async function sendChat() {
 
     save();
   } catch(err) {
-    p.chatHistory.push({ role: "assistant", content: "请求失败：" + err.message });
+    if (assistantIndex === -1) {
+      p.chatHistory.push({ role: "assistant", content: "请求失败：" + err.message });
+    } else {
+      p.chatHistory[assistantIndex].content = "请求失败：" + err.message;
+    }
     save();
   } finally {
     clearInterval(timerUpdate);
